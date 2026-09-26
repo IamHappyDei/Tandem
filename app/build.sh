@@ -11,8 +11,6 @@ cp ../GUIDE.md ../README.md dist/
 cp packaging/tandem.ico dist/tandem.ico
 cp packaging/allow-in-firewall.bat dist/
 
-# The setup is the one file anybody has to handle: it carries the program, the icon,
-# the manual and the firewall helper inside itself.
 stage=cmd/tandem-setup/payload
 rm -rf "$stage" && mkdir -p "$stage"
 touch "$stage/.keep"
@@ -21,9 +19,6 @@ for f in tandem.exe tandem.ico GUIDE.md README.md allow-in-firewall.bat; do
   [ -f "$stage/$f" ] || { echo "$stage/$f missing - the installer would ship incomplete"; exit 1; }
 done
 
-# Both binaries want the same icon and the same manifest: without the v6 common
-# controls dependency the installer falls back to the old comctl32 and its dialogs
-# answer with E_INVALIDARG.
 for d in cmd/tandem cmd/tandem-setup; do
   PATH="/e/go/bin:$PATH" GOTOOLCHAIN=local go run github.com/akavel/rsrc@latest     -ico packaging/tandem.ico -manifest "$d/manifest.xml" -o "$d/resource.syso" >/dev/null
 done

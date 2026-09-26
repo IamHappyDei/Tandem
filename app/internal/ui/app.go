@@ -45,6 +45,7 @@ type App struct {
 	subs      []chan logx.Rec
 	srv       *http.Server
 	up        Update
+	upClient  *http.Client
 	OnQuit    func()
 }
 
@@ -136,6 +137,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("/api/probe", a.post(a.probeOnce))
 	mux.HandleFunc("/api/quit", a.post(a.quit))
 	mux.HandleFunc("/api/update", a.post(a.hUpdate))
+	mux.HandleFunc("/api/update/apply", a.post(a.hApply))
 	return mux
 }
 
@@ -802,7 +804,7 @@ func modeOf(c *conf.Config) string {
 	return "room"
 }
 
-const Version = "0.2.0"
+const Version = "1.0.0"
 
 func selfSent(cands []string, hosts, ports map[string]bool) string {
 	for _, c := range cands {

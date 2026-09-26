@@ -26,11 +26,12 @@ the archive, because it is the one file that has to survive a broken install.
 | `internal/fake` | a stand-in Couatl, so the whole stack is testable without the sim |
 | `internal/wire` | the types that cross a socket (leaf package, breaks the import cycle) |
 | `internal/conf`, `internal/logx` | `%APPDATA%\Tandem` settings, ring-buffer logger with fan-out |
+| `internal/ui/updater.go` | the release fetch: asset choice, length-checked download, checksum, hand-off |
 | `test/uiharness.js` | renders the real dashboard against a running app, in Node, no browser |
 
 ## Proving it
 
-    go test ./...              # engine, link, room format, invite format
+    go test ./...              # engine, link, room format, invite format, updater
     bash smoke.sh              # two binaries, two fake GSX, one action, one room
     bash smoke-relay.sh        # allowed to meet only through a relay
     bash smoke-code.sh         # joining by 8-character code through a rendezvous
@@ -68,3 +69,20 @@ frame.
 * An installer cannot delete the image it is running from — no handle, no rename, no
   delete-on-close. The sweep is a script handed to the shell, which is the only thing
   that reliably outlives the process.
+
+## Updating over GitHub
+
+`internal/ui/update.go` asks for the newest tag; `updater.go` turns a newer release into a
+running installer. The rules it enforces, each covered by a test against a stub server:
+
+* an update is only ever *offered* - the download starts when a person presses it;
+* the automatic "Source code" archive of a release is never mistaken for an installer;
+* a body that ends short of `Content-Length` is deleted, not executed;
+* the SHA-256 GitHub publishes with the asset is verified when present, and its absence is
+  logged rather than passed over in silence;
+* never downgrade, never install over yourself quietly - the app exits so the installer can
+  take the files.
+
+The test that matters most is `TestPickInstallerPrefersTheSingleFile`: it is the one that
+found the source-archive bug, because every GitHub release carries a zipball and the first
+version of this code took the first `.zip` it saw.

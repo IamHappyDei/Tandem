@@ -40,6 +40,7 @@ func main() {
 	name := fs.String("name", "", "what this cockpit is called (default: the PC name)")
 	bind := fs.String("bind", "", "address to listen on (discover / relay)")
 	once := fs.Bool("once", false, "print status and exit (headless use)")
+	get := fs.Bool("get", false, "with update: download the installer and run it")
 	_ = fs.Parse(args)
 
 	switch mode {
@@ -56,7 +57,9 @@ func main() {
 	case "window":
 		runWindow(fs.Args())
 	case "update":
-		runUpdate()
+		runUpdate(*get)
+	case "version":
+		fmt.Println(ui.Version)
 	default:
 		runApp(*uiPort, *gsxURL, !*noGUI, *once, !*browser, *console, *listen, *udp, *name)
 	}
@@ -320,6 +323,24 @@ func runningPort() int {
 	return cfg.UI.Port
 }
 
-func runUpdate() {
-	fmt.Println(ui.UpdateLine(ui.CheckNow()))
+func runUpdate(get bool) {
+	if !get {
+		fmt.Println(ui.UpdateLine(ui.CheckNow()))
+		return
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/update/apply", runningPort())
+	res, err := http.Post(url, "application/json", strings.NewReader("{}"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "no running app answered (%v) - the update has to come from the copy that is running\n", err)
+		os.Exit(1)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	var out map[string]any
+	_ = json.Unmarshal(b, &out)
+	if res.StatusCode != 200 {
+		fmt.Fprintf(os.Stderr, "it did not start: %v\n", out["error"])
+		os.Exit(1)
+	}
+	fmt.Printf("the installer (%v) is downloaded and starting - this copy is closing so the files are free\n", out["installer"])
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,6 +18,13 @@ const (
 	updateEvery = 6 * time.Hour
 )
 
+type assetRef struct {
+	Name   string `json:"name"`
+	Size   int64  `json:"size"`
+	Digest string `json:"digest,omitempty"`
+	HasURL bool   `json:"hasAsset"`
+}
+
 type Update struct {
 	Current string    `json:"current"`
 	Latest  string    `json:"latest,omitempty"`
@@ -24,6 +32,7 @@ type Update struct {
 	URL     string    `json:"url"`
 	Checked time.Time `json:"checked"`
 	Fail    string    `json:"fail,omitempty"`
+	Asset   assetRef  `json:"asset"`
 }
 
 var tagRe = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
@@ -103,7 +112,7 @@ func less(a, b []int) bool {
 }
 
 func (a *App) updateNow() Update {
-	u := checkUpdate(nil)
+	u := checkUpdate(a.upClient)
 	a.mu.Lock()
 	a.up = u
 	a.mu.Unlock()
@@ -111,6 +120,16 @@ func (a *App) updateNow() Update {
 		a.log.Info("Tandem %s is out, you are on %s - %s", u.Latest, Version, u.URL)
 	} else if u.Fail != "" {
 		a.log.Debug("update check: %s", u.Fail)
+	}
+	if u.Newer {
+		if rel, err := latestRelease(nil); err == nil && strings.EqualFold(rel.version(), u.Latest) {
+			if a2, err := pickInstaller(rel); err == nil {
+				u.Asset = assetRef{Name: a2.Name, Size: a2.Size, Digest: wantDigest(a2), HasURL: a2.BrowserDownloadURL != ""}
+			}
+		}
+		if u.Asset.Name == "" {
+			u.Fail = "no installer is attached to that release yet"
+		}
 	}
 	return u
 }
@@ -142,8 +161,14 @@ func (a *App) updateLoop() {
 
 func UpdateLine(u Update) string {
 	switch {
+	case u.Newer && u.Asset.Name != "":
+		return fmt.Sprintf("Tandem %s is available - you have %s. Installer: %s (%s), ready to download",
+			u.Latest, u.Current, u.Asset.Name, mb(u.Asset.Size))
 	case u.Newer:
-		return fmt.Sprintf("Tandem %s is available - you have %s. %s", u.Latest, u.Current, u.URL)
+		return fmt.Sprintf("Tandem %s is available - you have %s, but no installer is attached to that release yet: %s",
+			u.Latest, u.Current, u.URL)
+	case u.Latest != "" && less(parseVer(u.Latest), parseVer(Version)):
+		return fmt.Sprintf("you are ahead of the newest published release (%s)", u.Latest)
 	case u.Latest != "":
 		return fmt.Sprintf("%s is the newest release - nothing to do", u.Current)
 	case u.Fail != "":
@@ -169,3 +194,11 @@ func (a *App) hUpdate(r *http.Request, body map[string]any) (any, error) {
 }
 
 func CheckNow() Update { return checkUpdate(nil) }
+
+func (a *App) hApply(r *http.Request, body map[string]any) (any, error) {
+	path, err := a.applyUpdate()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true, "installer": filepath.Base(path)}, nil
+}

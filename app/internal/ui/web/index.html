@@ -45,6 +45,7 @@
   .copylab{color:var(--ok) !important;border-color:#256a52 !important}
 
   input{font:inherit;background:#0a0f17;border:1px solid var(--line);border-radius:10px;color:var(--tx);padding:11px 13px;width:100%}
+  input[type=checkbox]{width:auto;flex:none;padding:0;accent-color:var(--acc)}
   input:focus{outline:none;border-color:#2f6f8f;box-shadow:0 0 0 3px #5ac8fa1f}
   input::placeholder{color:var(--dim)}
 
@@ -87,6 +88,17 @@
   .grid{display:grid;grid-template-columns:120px 1fr;gap:9px 12px;align-items:center;margin-top:14px;font-size:13px}
   .grid label{color:var(--dim);font-size:12px}
   .grid input,.grid select{font:12.5px/1.4 var(--mono);padding:8px 10px}
+
+  .opts{margin-top:16px;border-top:1px solid var(--line);padding-top:8px}
+  .opt{display:flex;gap:11px;align-items:flex-start;padding:11px 8px;border-radius:10px;cursor:pointer}
+  .opt:hover{background:#111823}
+  .opt>input{margin-top:3px;accent-color:var(--acc);flex:none}
+  .opt .t{display:block;font-weight:500;font-size:13.5px;color:var(--tx)}
+  .opt .d{display:block;color:var(--dim);font-size:12.5px;line-height:1.6;margin-top:3px}
+  .opt .d b{color:var(--mut);font-weight:500}
+  .optrow{display:flex;gap:10px;align-items:center;padding:0 8px 10px 34px}
+  .optrow .msg{font:12px/1.5 var(--mono);color:var(--mut)}
+  .optnote{padding:0 8px 10px 34px;color:var(--dim);font-size:12.5px;line-height:1.6}
   .logbox{margin-top:14px;background:#070b11;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:11.5px/1.75 var(--mono);max-height:180px;overflow:auto;color:var(--mut)}
   .logbox .warn{color:var(--warn)} .logbox .error{color:var(--bad)} .logbox .info{color:var(--mut)}
   .logbox time{color:#33404f;margin-right:6px}
@@ -186,16 +198,21 @@
         <label>passphrase</label><input id="sPass" placeholder="optional">
         <label>rendezvous</label><input id="sRdv" placeholder="host:port of a phone-book server (for codes, later)">
         <label>relay</label><input id="sRelay" placeholder="ws://your-vps:8791 (last resort)">
-        <label>updates</label>
-        <div>
-          <label class="chk"><input type="checkbox" id="sUpd"><span><b>Ask GitHub now and then whether a newer version exists.</b> It sends the version number and nothing else; no account, no check-in beyond that.</span></label>
-          <div class="row" style="margin-top:6px"><button class="ghost sm" id="upNow">Check now</button><span class="dim" id="upMsg" style="font:12px/1.6 var(--mono)"></span></div>
-        </div>
-        <label>the link</label>
-        <div>
-          <label class="chk"><input type="checkbox" id="sOpaque"><span><b>Send a scrambled string.</b> Longer, and nothing in it says where you are. The person you send it to opens it as normal.</span></label>
-          <label class="chk"><input type="checkbox" id="sHide"><span><b>Keep it masked here.</b> Blurred in this window until you press Show — for when someone is looking at your screen.</span></label>
-        </div>
+      </div>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" id="sUpd">
+          <span><span class="t">Ask GitHub now and then whether a newer version exists</span>
+          <span class="d">The only thing sent out is the version number — no account, no name, nothing else. When something newer is listed, the link at the bottom of this window says so and you decide. Updating never happens by itself: <b>you press it</b>.</span></span></label>
+        <div class="optrow"><button class="ghost sm" id="upNow">Check now</button><button class="primary sm" id="upGet" hidden>Download &amp; install</button><span class="msg" id="upMsg">not checked yet</span></div>
+        <div class="optnote" id="upNote"></div>
+
+        <label class="opt"><input type="checkbox" id="sOpaque">
+          <span><span class="t">Send a scrambled string instead of a plain one</span>
+          <span class="d">About 200 characters, and nothing in it says where you are — no address, no port, no room code in the clear. Whoever you send it to opens it as normal; a bystander with the same string has nothing. If the room has a passphrase, that passphrase is what unlocks it.</span></span></label>
+
+        <label class="opt"><input type="checkbox" id="sHide">
+          <span><span class="t">Keep the string masked in this window</span>
+          <span class="d">Your address sits blurred behind dots until you press <b>Show</b> — for a screen someone can lean over. <b>Copy</b> always hands over the real string either way.</span></span></label>
       </div>
       <div class="row" style="margin-top:14px">
         <button class="primary sm" id="sSave">Save</button>
@@ -324,7 +341,12 @@ function render(){
   else if (!a.checkUpdates) { fu.className = 'dim'; fu.textContent = 'update checks off'; }
   else if (up.latest) { fu.className = 'dim'; fu.textContent = ''; }
   else { fu.className = 'dim'; fu.textContent = ''; }
-  $('#upMsg').textContent = up.newer ? ('a newer version is listed: ' + up.latest) : (up.fail ? up.fail : 'this is the newest release');
+  const canGet = !!(up.newer && up.asset && up.asset.name);
+  $('#upGet').hidden = !canGet;
+  $('#upMsg').textContent = up.newer
+    ? (canGet ? up.latest + ' is ready - ' + up.asset.name + ' (' + mb(up.asset.size) + ')' : 'a newer version is listed, but no installer is attached to it yet')
+    : (up.fail ? up.fail : 'this is the newest release');
+  $('#upNote').textContent = canGet ? 'It downloads that one file, checks the checksum GitHub publishes with it, then runs it — the same installer you could download by hand, and it will ask for administrator rights. This copy closes so the files are free; nothing is replaced while the sim is running.' : '';
   if (document.activeElement !== $("#sUpd")) $("#sUpd").checked = !!a.checkUpdates;
   $('#fVer').textContent = a.version; $('#fRoom').textContent = a.room || '—'; $('#fLog').textContent = a.logFile;
   $('#pasteBox').disabled = false;
@@ -454,6 +476,13 @@ $('#sSave').onclick = async () => {
 $('#sUpd').onchange = async () => {
   try { await api('/api/config', {checkUpdates:$('#sUpd').checked}); flash($('#setHint'), $('#sUpd').checked ? 'will ask github every six hours' : 'will not look for updates', 'ok'); }
   catch(e){ flash($('#setHint'), e.message, 'bad'); }
+};
+function mb(n){ return n >= 1048576 ? (n/1048576).toFixed(1)+' MB' : Math.round(n/1024)+' KB' }
+$('#upGet').onclick = async () => {
+  if(!confirm('Download the Tandem installer and run it now? This copy will close.')) return;
+  $('#upMsg').textContent = 'downloading…';
+  try { const r = await api('/api/update/apply', {}); $('#upMsg').textContent = 'starting ' + (r.installer||'the installer'); }
+  catch(e){ $('#upMsg').textContent = e.message; $('#upNote').textContent = 'Nothing was changed. You can still download it from the release page.'; }
 };
 $('#upNow').onclick = async () => {
   $('#upMsg').textContent = 'asking github…';

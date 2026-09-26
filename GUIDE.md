@@ -107,7 +107,42 @@ on any machine both of you can reach, then `ws://that-address:8791` in
 Settings → *relay* on both cockpits. Frames then hop instead of punching. Slower by a
 few milliseconds, and it works everywhere.
 
-## 6. Command line
+## 6. Getting an update
+
+If update checks are on (Settings → the switch, off-change-free), Tandem asks GitHub every
+six hours whether a newer release exists and, if one does, says so in the footer. **Nothing
+is downloaded and nothing is replaced until you press it.**
+
+Pressing **Download & install** does exactly this, in order:
+
+1. reads the newest release of the GitHub project and picks the installer from it —
+   `tandem-setup.exe`, the same single file you would have downloaded by hand;
+2. writes it to a temp folder, watching the length so a download that stops half way is
+   deleted instead of run;
+3. checks its SHA-256 against the checksum GitHub records for the asset. If the release has
+   no checksum, it says so in the log and carries on — that is the honest weakness of the
+   path, not a silent pass;
+4. closes this copy of Tandem (so the files on disk are free — your co-pilot sees the
+   connection drop), and starts the new installer. The installer then elevates, writes the
+   files and starts Tandem again.
+
+From a terminal, the same thing against the copy that is running:
+
+    tandem update              what did it find
+    tandem update --get        fetch it and run the installer
+
+Or skip all of it: download `tandem-setup.exe` from the release page and run it. Version
+numbers are `major.minor.patch`, and an update never downgrades.
+
+### Publishing one, if you are the one building it
+
+`bash build.sh` leaves `app/dist/tandem-setup.exe` and `dist/Tandem-<version>.zip`. Create
+a GitHub Release tagged `v<version>` and **attach `tandem-setup.exe`** — GitHub then records
+its SHA-256 automatically and the updater verifies against it. A zip whose name contains
+`Tandem` works too, but the automatic "Source code" archive is deliberately ignored: a
+release always has one of those, and it is not an installer.
+
+## 7. Command line
 
 ```
 tandem                       window + tray — this is the app
@@ -115,7 +150,9 @@ tandem --nogui               no window, no tray (a box that only syncs)
 tandem --browser             the dashboard in your normal browser
 tandem --console             keep the console open, log to it too
 tandem status                what the running copy sees, as JSON
+tandem version               the version this file is, and nothing else
 tandem update                ask GitHub for the newest release and say what it found
+tandem update --get          download its installer and run it (this copy closes)
 tandem stop                  ask it to quit
 tandem window hide|show      the window, from a terminal
 tandem relay --port 8791     the optional relay
@@ -156,6 +193,7 @@ Everything refreshes by itself.
 | ports need moving | something owns 8790 | Settings → room/udp port, restart the app |
 | no window, a browser tab instead | no Edge on that box | install Edge, or run `tandem --browser` deliberately |
 | a scrambled string refuses to open | the room has a passphrase it was made with | type that passphrase in Settings first |
+| the update says "no installer is attached" | the release was made from a tag only | attach `tandem-setup.exe` to the release, or download it from the tag page |
 
 The log is `%APPDATA%\Tandem\tandem.log`.
 

@@ -95,9 +95,6 @@ func main() {
 		}
 		return
 	case graphical:
-		// Administrator rights are asked for once, before anything is shown, so the
-		// window can install to either place without a second prompt later on. A
-		// refused prompt is not fatal: the per-account path works without rights.
 		if !elevated() && !*noElevate && relaunchWith("--no-elevate") {
 			return
 		}
