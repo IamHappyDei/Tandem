@@ -4,7 +4,8 @@ One Windows binary, ~8 MB: the window, the tray, the GSX client, the peer link a
 sync engine. Two of them on two PCs make GSX Pro's ground services act as one. No
 runtime, no services, nothing to install on the other machine.
 
-    bash build.sh     # both binaries + dist/Tandem-<version>.zip
+    bash build.sh     # tandem.exe, staged into cmd/tandem-setup/payload/, then the
+                      # single-file installer and dist/Tandem-<version>.zip
 
 The user-facing manual is **../GUIDE.md**; it is also copied next to the binary and into
 the archive, because it is the one file that has to survive a broken install.
@@ -14,7 +15,7 @@ the archive, because it is the one file that has to survive a broken install.
 | Path | What it is |
 |---|---|
 | `cmd/tandem` | the app. Subcommands: `relay`, `discover`, `fake`, `status`, `stop`, `window` |
-| `cmd/tandem-setup` | the installer: its own window, plus `--quiet` / `--dir` / `--uninstall` |
+| `cmd/tandem-setup` | the installer: one file carrying the program, its own window, `--quiet` / `--dir` / `--uninstall` |
 | `internal/syn` | **the sync engine**: phase classifier, intents, digests, reconciliation |
 | `internal/gsx` | Couatl client (subscribe / snapshot / patch, serialized commands) |
 | `internal/room` | the P2P link: ws host+dial, UDP + fragmentation, STUN, rooms, retransmit |

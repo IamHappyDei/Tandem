@@ -123,12 +123,14 @@ func (g *gui) info(w http.ResponseWriter, r *http.Request) {
 	}
 	self, _ := os.Executable()
 	writeJSON(w, map[string]any{
-		"version":   ui.Version,
-		"all":       all.dir,
-		"mine":      mine.dir,
-		"installed": where,
-		"here":      where != "" && strings.EqualFold(filepath.Dir(self), where),
-		"elevated":  g.elev,
+		"version":    ui.Version,
+		"all":        all.dir,
+		"mine":       mine.dir,
+		"installed":  where,
+		"here":       where != "" && strings.EqualFold(filepath.Dir(self), where),
+		"elevated":   g.elev,
+		"singleFile": hasPayload(),
+		"whatItSays": payloadState(),
 	})
 }
 
@@ -195,7 +197,7 @@ func (g *gui) doInstall(body map[string]any, r rep) {
 		t = mine
 	}
 	if t.machine && !g.elev {
-		if relaunch(false) {
+		if relaunchWith("--no-elevate") {
 			g.emit("done", map[string]any{"ok": true, "what": "elevate"})
 			go func() { time.Sleep(400 * time.Millisecond); close(g.quit) }()
 			return

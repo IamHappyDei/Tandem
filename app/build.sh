@@ -3,23 +3,40 @@ set -euo pipefail
 cd "$(dirname "$0")"
 export PATH="/e/go/bin:$PATH" GOTOOLCHAIN=local GOFLAGS=-trimpath
 LDFLAGS="-s -w"
-VER=$(grep -m1 'Version *=' internal/ui/app.go | sed 's/.*"\(.*\)".*/\1/')
+VER=$(grep -m1 'Version *=' internal/ui/app.go | tr -d '"' | awk '{print $NF}')
 
 go build -ldflags="$LDFLAGS" -o dist/tandem.exe ./cmd/tandem
-go build -ldflags="$LDFLAGS" -o dist/tandem-setup.exe ./cmd/tandem-setup
 
 cp ../GUIDE.md ../README.md dist/
-cp tools/icon/tandem.ico dist/tandem.ico
+cp packaging/tandem.ico dist/tandem.ico
 cp packaging/allow-in-firewall.bat dist/
 
-for f in tandem.exe tandem-setup.exe tandem.ico GUIDE.md README.md allow-in-firewall.bat; do
-  [ -f "dist/$f" ] || { echo "dist/$f missing - the archive would be broken"; exit 1; }
+# The setup is the one file anybody has to handle: it carries the program, the icon,
+# the manual and the firewall helper inside itself.
+stage=cmd/tandem-setup/payload
+rm -rf "$stage" && mkdir -p "$stage"
+touch "$stage/.keep"
+cp dist/tandem.exe dist/tandem.ico dist/GUIDE.md dist/README.md dist/allow-in-firewall.bat "$stage/"
+for f in tandem.exe tandem.ico GUIDE.md README.md allow-in-firewall.bat; do
+  [ -f "$stage/$f" ] || { echo "$stage/$f missing - the installer would ship incomplete"; exit 1; }
 done
 
-rm -f "dist/Tandem-$VER.zip"
-files=$(for f in tandem.exe tandem-setup.exe tandem.ico GUIDE.md README.md allow-in-firewall.bat; do printf '%s,' "$(cygpath -w "dist/$f")"; done)
-powershell -NoProfile -Command "Compress-Archive -Force -Path ${files%,} -DestinationPath '$(cygpath -w "dist/Tandem-$VER.zip")'"
-ls -la "dist/Tandem-$VER.zip"
+# Both binaries want the same icon and the same manifest: without the v6 common
+# controls dependency the installer falls back to the old comctl32 and its dialogs
+# answer with E_INVALIDARG.
+for d in cmd/tandem cmd/tandem-setup; do
+  PATH="/e/go/bin:$PATH" GOTOOLCHAIN=local go run github.com/akavel/rsrc@latest     -ico packaging/tandem.ico -manifest "$d/manifest.xml" -o "$d/resource.syso" >/dev/null
+done
+
+go build -ldflags="$LDFLAGS" -o dist/tandem-setup.exe ./cmd/tandem-setup
+
+rm -rf dist/stage
+mkdir -p dist/stage
+cp dist/tandem-setup.exe dist/stage/tandem-setup.exe
+
+files=$(cygpath -w "$(pwd)/dist/stage/tandem-setup.exe")
+powershell -NoProfile -Command "Compress-Archive -Force -Path $files -DestinationPath '$(cygpath -w "dist/Tandem-$VER.zip")'"
+ls -la "dist/Tandem-$VER.zip" "dist/tandem-setup.exe" "dist/tandem.exe"
 
 if [ "${1:-}" = "--test" ]; then
   go test ./... 2>&1 | grep -v "no test files" || true

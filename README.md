@@ -9,9 +9,9 @@ locally, so both ramps look identical.
 Nothing about the simulator itself is touched: no simmods, no aircraft or FMC state, no
 multiplayer traffic. It speaks to GSX's own Remote control server on each box.
 
-**Using it** (no build, no code): download the archive, run `tandem-setup.exe`, and read
-[GUIDE.md](GUIDE.md). That file is the whole manual and is also installed next to the
-program.
+**Using it** (no build, no code): one file, `tandem-setup.exe`, which carries the program
+inside it. Read [GUIDE.md](GUIDE.md) — that file is the whole manual and is installed next
+to the program too.
 
 ## What is in here
 
@@ -19,7 +19,7 @@ program.
 |---|---|
 | `app/` | the product: one Go binary, ~8 MB, embedded dashboard, no runtime, no services |
 | `app/cmd/tandem` | the app: window, tray, GSX client, peer link, sync engine |
-| `app/cmd/tandem-setup` | the installer: a window of its own, plus `--quiet` for scripts |
+| `app/cmd/tandem-setup` | the installer: one file, a window of its own, `--quiet` for scripts |
 | `tandem relay`, `tandem discover` | the two optional servers, both subcommands of the same binary |
 | `app/internal/` | the parts, each testable without a simulator |
 | `GUIDE.md` | the manual that ships inside the archive |
@@ -29,7 +29,7 @@ program.
 
 Go 1.22+, Windows. From `app/`:
 
-    bash build.sh            # both binaries, staged payload, dist/Tandem-<version>.zip
+    bash build.sh            # tandem.exe, then tandem-setup.exe carrying it, then the zip
 
 Artifacts land in `app/dist/`, which is not tracked. The `.exe`s are unsigned; SmartScreen
 will complain once and `More info → Run anyway` is the correct answer for a build from

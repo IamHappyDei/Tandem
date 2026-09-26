@@ -55,7 +55,7 @@
       <label class="opt"><input type="radio" name="where" value="me">
         <span><b>Only for me</b><span id="pMe"></span> &middot; needs no administrator rights</span></label>
       <div style="height:6px"></div>
-      <label class="chk"><input type="checkbox" id="fw" checked> Let Tandem through Windows Firewall (needed between two cities)</label>
+      <label class="chk"><input type="checkbox" id="fw" checked> Let Tandem through Windows Firewall (needed in order to let others connect)</label>
       <label class="chk"><input type="checkbox" id="start" checked> Start Tandem when I sign in</label>
     </div>
 
@@ -95,6 +95,7 @@ function post(p,b){
 fetch('/api/info').then(r=>r.json()).then(i=>{
   $('#pAll').textContent=i.all; $('#pMe').textContent=i.mine; $('#ver').textContent=i.version;
   $('#noAdmin').hidden = !!i.elevated;
+  if (i.singleFile) $('#note').textContent = 'Everything needed is inside this one file.';
   if(i.installed){
     $('#h').textContent='Tandem is already on this PC';
     $('#go').textContent='Update';

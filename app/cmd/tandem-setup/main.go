@@ -66,6 +66,7 @@ func main() {
 	quiet := fs.Bool("quiet", false, "no window, no pause - for scripts")
 	dir := fs.String("dir", "", "install folder (default Program Files\\Tandem)")
 	port := fs.Int("ui", 0, "internal: port the setup window should talk to")
+	noElevate := fs.Bool("no-elevate", false, "internal: this copy already asked for administrator rights")
 	_ = fs.Parse(normalizeArgs(os.Args[1:]))
 
 	sink = os.Stdout
@@ -94,6 +95,12 @@ func main() {
 		}
 		return
 	case graphical:
+		// Administrator rights are asked for once, before anything is shown, so the
+		// window can install to either place without a second prompt later on. A
+		// refused prompt is not fatal: the per-account path works without rights.
+		if !elevated() && !*noElevate && relaunchWith("--no-elevate") {
+			return
+		}
 		if err := runGUI(*port); err != nil {
 			fmt.Fprintln(sink, "cannot show the setup window:", err)
 			os.Exit(1)
@@ -130,33 +137,38 @@ func targetOf() target {
 }
 
 func runInstall(t *target, wantFirewall, wantAutorun bool, r rep) error {
-	src, err := os.Executable()
-	if err != nil {
-		return err
+	if !hasPayload() && !hasFile(filepath.Join(srcDir(), exeName)) {
+		return fmt.Errorf("%s", payloadState())
 	}
-	srcDir := filepath.Dir(src)
-	if !hasFile(filepath.Join(srcDir, exeName)) {
-		return fmt.Errorf("%s is not next to this installer - unzip the whole archive and run it again", exeName)
-	}
-	r.pct(6)
-
-	r.step("copying files")
 	if err := os.MkdirAll(t.dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create %s: %w", t.dir, err)
 	}
-	names := append([]string{}, append(payload, setupName)...)
+	r.pct(4)
+	r.step("writing files")
+	names := payloadNames()
 	done := 0
 	for _, name := range names {
-		p := filepath.Join(srcDir, name)
-		if !hasFile(p) {
+		p := filepath.Join(t.dir, name)
+		if f, size, err := embedded(name); err == nil {
+			err = installBytes(name, p, f, size)
+			f.Close()
+			if err != nil {
+				return fmt.Errorf("install %s: %w", name, err)
+			}
+		} else if from := filepath.Join(srcDir(), name); hasFile(from) {
+			if err := copyFile(from, p); err != nil {
+				return fmt.Errorf("copy %s: %w", name, err)
+			}
+		} else {
+			r.run(name + " is not in this build, skipped")
 			continue
 		}
-		if err := copyFile(p, filepath.Join(t.dir, name)); err != nil {
-			return fmt.Errorf("copy %s: %w", name, err)
-		}
-		r.ok(fmt.Sprintf("%-22s %s", name, sha12(filepath.Join(t.dir, name))))
+		r.ok(fmt.Sprintf("%-22s %s", name, sha12(p)))
 		done++
-		r.pct(6 + done*30/len(names))
+		r.pct(4 + done*34/len(names))
+	}
+	if done == 0 {
+		return fmt.Errorf("nothing was written")
 	}
 
 	r.step("start menu")
@@ -175,7 +187,7 @@ func runInstall(t *target, wantFirewall, wantAutorun bool, r rep) error {
 			r.ok("inbound allowed for the installed copy")
 		}
 	} else {
-		r.ok("firewall left as it was - between two cities you will want the rule on")
+		r.ok("firewall left as it was - others cannot connect in until it is allowed")
 	}
 	r.pct(66)
 
@@ -513,6 +525,14 @@ func hasFile(p string) bool {
 }
 
 func programFiles() string { return envOr("ProgramFiles", `C:\Program Files`) }
+
+func srcDir() string {
+	self, err := os.Executable()
+	if err != nil {
+		return "."
+	}
+	return filepath.Dir(self)
+}
 
 func envOr(k, fall string) string {
 	if v := os.Getenv(k); v != "" {

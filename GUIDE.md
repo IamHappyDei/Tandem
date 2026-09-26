@@ -8,21 +8,27 @@ your own copy of GSX.
 
 ## 1. Install (once per PC)
 
-Unzip the archive and double-click **`tandem-setup.exe`**. It is a window, not a
-command prompt:
+There is one file: **`tandem-setup.exe`** (~16 MB; the archive it travels in is ~7 MB). It
+carries the program, the icon, this guide and the firewall helper inside itself — nothing
+to unzip beside it, nothing to download at install time.
 
-- **For every account on this PC** — into `C:\Program Files\Tandem`. Windows asks for
-  administrator rights once, and only when you pick this.
-- **Only for me** — into your own profile, no administrator rights at all.
-- **Let Tandem through Windows Firewall** — leave it on unless you know why not to.
+Double-click it. Windows asks for administrator rights once, up front, so the window can
+install to either place without interrupting you later. If you answer *No*, the window
+still opens and *Only for me* works without any rights.
+
+- **For every account on this PC** — into `C:\Program Files\Tandem`.
+- **Only for me** — into your own profile.
+- **Let Tandem through Windows Firewall (needed in order to let others connect)** — leave
+  it on unless you know why not to.
   Without an inbound rule Windows quietly drops the other cockpit's packets and both
   screens sit there saying "alone" with no error anywhere. This is the single most
   common reason a session never forms.
 - **Start Tandem when I sign in**.
 
-It is unsigned, so SmartScreen will warn: **More info → Run anyway**. After installing,
-find Tandem in the Start menu; the unzipped folder is no longer needed and the setup
-will clear it if you run the setup from inside it.
+It is unsigned, so SmartScreen will warn: **More info → Run anyway**. Afterwards find
+Tandem in the Start menu, or run `tandem-setup.exe` again to update or remove it. An
+installer that was run from inside the folder it installs to clears that folder properly,
+including the file it was running from.
 
 Uninstall from **Settings → Apps**, or run `tandem-setup.exe --uninstall`.
 
@@ -116,7 +122,8 @@ tandem relay --port 8791     the optional relay
 tandem discover --port 8788  the code phone book
 tandem fake --port 8744      a stand-in GSX, for testing without the sim
 
-tandem-setup.exe                        the graphical installer
+tandem-setup.exe                        the graphical installer, elevated on start
+tandem-setup.exe --no-elevate           the same window, without asking again
 tandem-setup.exe --dir "D:\Tandem"      install somewhere else
 tandem-setup.exe --uninstall --quiet    for scripts and GPO
 ```
