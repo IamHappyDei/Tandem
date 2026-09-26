@@ -1,0 +1,15 @@
+run/
+capture/
+tmp/
+fscopilot/
+node_modules/
+config.json
+*.log
+dist/
+app/dist/
+app/.smoke/
+app/tools/
+*.exe
+*.zip
+.smoke/
+prompts.md

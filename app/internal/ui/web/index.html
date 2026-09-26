@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tandem</title>
+<link rel="icon" href="/icon.png">
+<style>
+  :root{
+    --bg:#080b11; --card:#0f141d; --line:#1c2431; --tx:#e6ecf5; --mut:#8496ad; --dim:#4f5d70;
+    --ok:#3ddc97; --warn:#ffb454; --bad:#ff5c7a; --acc:#5ac8fa; --acc2:#a78bfa;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+    --sans:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:radial-gradient(900px 520px at 50% -180px,#131c29,#080b11 70%);color:var(--tx);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:660px;margin:0 auto;padding:26px 20px 60px}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+  .mark{width:9px;height:9px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 3px #ffffff08;transition:background .3s}
+  .mark.ok{background:var(--ok)} .mark.warn{background:var(--warn)} .mark.bad{background:var(--bad)}
+  h1{font-size:14px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;margin:0;color:var(--mut)}
+  .wordmark{height:19px;width:auto;color:#fff;display:block;filter:drop-shadow(0 1px 0 #0006)}
+  #fUpd{font:11px/1 var(--mono);color:var(--dim)} #fUpd a{color:var(--ok);text-decoration:none;border-bottom:1px dotted}
+  .live{margin-left:auto;font:11px/1 var(--mono);color:var(--dim);letter-spacing:.08em}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card+.card{margin-top:12px}
+
+  #hero .eyebrow{font:11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+  #hero .big{font-size:22px;line-height:1.28;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+  #hero .sub{color:var(--mut);font-size:13.5px;margin:0 0 16px}
+  #hero.waiting .big{color:var(--tx)} #hero.knocking .big{color:var(--warn)}
+  #hero.together .big{color:var(--ok)} #hero.broken .big{color:var(--bad)}
+  .string{display:flex;gap:8px;align-items:stretch}
+  .string code{flex:1;min-width:0;background:#0a0f17;border:1px solid var(--line);border-radius:10px;padding:12px 13px;font:13px/1.4 var(--mono);word-break:break-all;color:var(--acc)}
+  button{font:inherit;border-radius:10px;border:1px solid var(--line);background:#161e29;color:var(--tx);padding:11px 15px;cursor:pointer;transition:.15s}
+  button:hover{border-color:#2c3a4d;background:#1a2431}
+  button:active{transform:translateY(1px)}
+  button.primary{background:linear-gradient(180deg,#1d5f7d,#174a63);border-color:#2a7293;color:#eaf7ff;font-weight:600}
+  button.primary:hover{background:linear-gradient(180deg,#22708f,#1a566f)}
+  button.ghost{background:transparent}
+  button.sm{padding:7px 11px;font-size:12.5px;border-radius:8px}
+  button:disabled{opacity:.4;cursor:default}
+  .copylab{color:var(--ok) !important;border-color:#256a52 !important}
+
+  input{font:inherit;background:#0a0f17;border:1px solid var(--line);border-radius:10px;color:var(--tx);padding:11px 13px;width:100%}
+  input:focus{outline:none;border-color:#2f6f8f;box-shadow:0 0 0 3px #5ac8fa1f}
+  input::placeholder{color:var(--dim)}
+
+  .row{display:flex;gap:9px;align-items:center}
+  .grow{flex:1}
+  .sep{height:1px;background:var(--line);margin:16px 0}
+  .muted{color:var(--mut)} .dim{color:var(--dim)}
+  .h2{font:11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 12px}
+
+  .join{display:flex;gap:9px}
+  .join button{white-space:nowrap}
+  .hint{font-size:12.5px;color:var(--mut);margin-top:10px;min-height:17px}
+  .hint.bad{color:var(--bad)} .hint.ok{color:var(--ok)}
+
+  .ssoon{display:flex;align-items:center;gap:10px}
+  .ssoon .txt{font-family:var(--mono);font-size:14px;letter-spacing:.22em;color:var(--dim)}
+  .badge{font:10px/1 var(--mono);letter-spacing:.14em;padding:4px 7px;border-radius:6px;background:#161e29;border:1px solid var(--line);color:var(--mut)}
+  .badge.ok{color:var(--ok);border-color:#256a52;background:#0d1a17}
+  .badge.warn{color:var(--warn);border-color:#4a3a1c}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{display:flex;gap:7px;align-items:center;background:#0b111a;border:1px solid var(--line);border-radius:99px;padding:6px 11px;font-size:12.5px}
+  .chip i{width:6px;height:6px;border-radius:50%;background:var(--dim)}
+  .chip.run i{background:var(--acc)} .chip.act i{background:var(--ok)}
+  .chip b{font-weight:500} .chip span{color:var(--dim);font:11px/1 var(--mono)}
+
+  .who{display:flex;flex-wrap:wrap;gap:8px}
+  .who span{background:#0b111a;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+  .who span.me{border-color:#2b3a4d}
+  .act{font:12.5px/1.9 var(--mono);color:var(--mut);max-height:130px;overflow:auto}
+  .act b{color:var(--tx);font-weight:500}
+  .act .you{color:var(--acc2)} .act .them{color:var(--acc)}
+
+  details{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+  details:first-of-type{border-top:0;margin-top:0}
+  summary{cursor:pointer;font-size:13px;color:var(--mut);list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary:before{content:"›";display:inline-block;margin-right:8px;color:var(--dim);transition:.2s}
+  details[open] summary:before{transform:rotate(90deg)}
+  .grid{display:grid;grid-template-columns:120px 1fr;gap:9px 12px;align-items:center;margin-top:14px;font-size:13px}
+  .grid label{color:var(--dim);font-size:12px}
+  .grid input,.grid select{font:12.5px/1.4 var(--mono);padding:8px 10px}
+  .logbox{margin-top:14px;background:#070b11;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:11.5px/1.75 var(--mono);max-height:180px;overflow:auto;color:var(--mut)}
+  .logbox .warn{color:var(--warn)} .logbox .error{color:var(--bad)} .logbox .info{color:var(--mut)}
+  .logbox time{color:#33404f;margin-right:6px}
+
+  .trouble{background:#141017;border:1px solid #4a2833;border-radius:12px;padding:13px 15px;margin-top:14px;font-size:13.5px;color:#ffd0d9}
+  .trouble b{color:#fff}
+  footer{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap;font:11.5px/1.6 var(--mono);color:var(--dim)}
+  footer b{color:var(--mut);font-weight:500}
+
+  .veil{position:fixed;inset:0;background:#05080fe8;z-index:20;display:grid;place-items:center;padding:22px;backdrop-filter:blur(4px)}
+  .veil .card{max-width:540px;width:100%}
+  .veil h3{margin:0 0 10px;font-size:17px;font-weight:600;letter-spacing:-.01em}
+  .veil ul{margin:0 0 16px;padding-left:18px;color:var(--mut);font-size:13.5px;line-height:1.65}
+  .veil ul li{margin:5px 0}
+  .veil ul b{color:var(--tx);font-weight:600}
+  .sbtns{display:flex;flex-direction:column;gap:6px}
+  #stringVal.masked{filter:blur(6.5px);user-select:none;letter-spacing:.4px;color:var(--mut)}
+  .formtag{font:11px/1.5 var(--mono);color:var(--dim);margin-top:9px}
+  .formtag b{color:var(--mut);font-weight:500}
+  .formtag.risk b{color:var(--warn)}
+  .chk{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--mut);margin-top:9px;cursor:pointer}
+  .chk input{margin-top:3px;accent-color:var(--acc);flex:none}
+  .chk span b{color:var(--tx);font-weight:500}
+  @media (max-width:520px){ .join{flex-direction:column} #hero .big{font-size:19px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="mark" id="mark"></div>
+    <svg class="wordmark" viewBox="0 0 3432 706" role="img" aria-label="Tandem"><path d="M1962.4 2.79375C1960.8 3.99107 1959.6 54.2787 1959.6 114.145V223.101L1942.85 211.926C1902.14 185.186 1851.07 172.814 1799.99 177.204C1662.73 188.379 1568.56 296.138 1568.56 440.615C1568.96 522.432 1592.5 583.496 1643.98 634.981C1696.25 687.264 1755.7 709.215 1833.51 705.623C1879 703.228 1906.93 694.448 1940.05 672.098C1951.22 664.515 1961.2 658.528 1962 658.528C1962.8 658.528 1963.59 667.308 1963.59 678.483V698.439H2031.43H2099.26V349.219V-9.90205e-06H2032.23C1995.12 -9.90205e-06 1963.59 1.19731 1962.4 2.79375ZM1887.78 317.69C1916.11 330.86 1937.26 351.215 1952.82 381.148C1964.39 402.7 1965.59 408.687 1965.59 441.014C1965.59 473.741 1964.39 479.329 1952.42 503.674C1938.06 532.809 1918.11 552.764 1888.18 567.132C1860.65 580.702 1813.96 580.303 1783.24 565.935C1678.29 517.244 1677.1 371.17 1780.84 319.685C1813.96 302.923 1854.66 302.125 1887.78 317.69Z" fill="currentColor"/>
+<path d="M1.19707 98.5797L2.39414 161.639L94.9676 162.836L187.94 163.634L188.738 430.238L189.935 696.443H259.764H329.593L330.79 429.839L331.588 163.634H423.364H515.139V99.777V35.9197H257.769H0L1.19707 98.5797Z" fill="currentColor"/>
+<path d="M467.256 369.574C492.395 270.595 571.8 196.361 669.96 179.599C735.001 168.823 803.234 187.182 843.535 226.693L862.289 245.052V218.312V191.572H928.128H993.967V445.005V698.439L929.325 697.641L864.285 696.443L862.289 484.916L860.294 273.788L842.338 298.134C832.363 311.703 822.786 325.672 820.392 329.264C816.801 334.852 813.21 334.053 788.071 320.883C763.731 308.511 755.351 306.116 732.208 305.717C693.902 305.318 667.965 315.295 640.033 340.439C615.294 363.587 598.934 392.722 598.934 415.471V430.238V462.965V474.14C598.934 491.302 617.289 524.428 637.24 542.787C665.97 569.128 686.32 576.711 729.016 576.711C762.135 576.711 767.322 575.514 790.066 563.94L814.806 551.168L823.983 571.922C829.171 583.496 837.151 604.649 841.939 619.416C850.319 644.16 850.319 646.555 844.333 655.734C835.555 668.905 812.013 684.869 786.076 695.246C756.548 706.82 690.709 709.614 653.999 700.834C561.825 679.282 486.808 605.048 465.66 514.849C456.483 476.934 457.281 407.888 467.256 369.574Z" fill="currentColor"/>
+<path d="M1294.43 185.585C1260.12 194.765 1236.57 207.935 1214.63 229.886L1193.48 251.039V221.106V191.572H1128.84H1063.8V444.207V696.443L1128.84 697.641L1193.48 698.439V549.572C1193.48 382.345 1194.68 373.166 1220.21 343.632C1260.51 296.537 1343.91 294.941 1379.02 340.439C1399.77 367.978 1400.97 379.153 1400.97 545.581V698.439L1466.01 697.641L1530.65 696.443L1531.85 530.814C1533.05 345.627 1530.65 323.277 1507.51 275.784C1477.98 215.119 1414.54 179.199 1339.92 179.998C1326.35 179.998 1306 182.791 1294.43 185.585Z" fill="currentColor"/>
+<path d="M2332.69 185.585C2212.58 211.926 2139.16 308.51 2138.37 441.014C2137.57 518.042 2159.12 577.509 2206.2 626.999C2252.89 676.488 2306.75 701.233 2376.98 705.224C2447.21 709.215 2509.46 688.461 2556.94 645.358C2578.49 625.402 2602.03 597.065 2602.03 590.281C2602.03 587.487 2540.98 553.962 2511.45 541.19L2495.09 534.006L2480.73 549.572C2473.15 558.352 2457.19 570.325 2445.61 576.711C2427.26 587.088 2420.08 588.684 2392.54 588.684C2365.81 588.684 2357.03 587.088 2337.88 577.509C2306.35 561.944 2281.22 531.612 2273.24 498.087L2270.84 487.311L2448.01 486.113C2545.37 485.315 2626.77 483.32 2628.77 481.723C2634.35 475.737 2631.56 398.709 2624.38 369.175C2612.8 321.282 2592.85 284.963 2558.54 251.438C2540.58 233.478 2517.84 215.917 2503.47 208.334C2453.2 181.993 2388.15 173.213 2332.69 185.585ZM2421.27 305.318C2457.58 316.093 2488.31 346.426 2496.29 379.951L2499.08 391.126H2386.96C2319.92 391.126 2274.83 389.529 2274.83 387.534C2274.83 379.951 2283.61 360.794 2293.19 346.426C2319.92 308.111 2372.59 290.95 2421.27 305.318Z" fill="currentColor"/>
+<path d="M2838.65 213.124C2852.62 201.15 2869.78 193.168 2897.31 185.186C2961.15 167.625 3038.56 193.567 3075.27 245.052L3083.25 256.227L3105.6 234.276C3117.57 222.303 3136.72 207.536 3147.9 201.949C3190.59 180.397 3247.65 174.011 3293.94 185.984C3348.21 199.953 3386.11 230.285 3408.86 277.779C3430.4 323.277 3432 340.838 3432 528.02V698.439L3363.37 697.641L3294.34 696.443L3292.34 530.414L3290.35 364.386L3278.38 345.228C3262.42 319.685 3239.27 307.712 3206.55 307.712C3191.79 307.313 3176.62 310.107 3166.65 314.896C3132.12 332.743 3117.28 347.939 3096.42 381.547C3094.03 388.332 3092.83 447.799 3093.63 543.585L3094.83 694.448L3082.85 696.842C3076.47 698.04 3051.33 698.439 3026.99 697.641L2983.1 696.443L2981.1 532.809L2981.09 531.79C2979.11 370.764 2979.09 369.135 2969.53 350.018C2963.55 338.044 2954.37 326.869 2943.99 320.085C2913.67 300.129 2857.81 304.519 2837.85 328.865C2834.66 332.457 2831.07 335.251 2829.08 335.251C2827.08 335.251 2825.48 310.107 2825.48 279.775V224.299L2838.65 213.124Z" fill="currentColor"/>
+<path d="M2669.87 445.005V698.439H2735.7H2801.54V445.005V191.572H2735.7H2669.87V445.005Z" fill="currentColor"/></svg>
+    <div class="live" id="live">connecting…</div>
+  </header>
+
+  <div class="card" id="hero">
+    <div class="eyebrow" id="eyebrow">status</div>
+    <p class="big" id="big">waking up…</p>
+    <p class="sub" id="sub"></p>
+    <div class="string" id="stringRow" hidden>
+      <code id="stringVal">—</code>
+      <div class="sbtns">
+        <button class="primary" id="copyBtn">Copy</button>
+        <button class="ghost sm" id="revealBtn">Hide</button>
+      </div>
+    </div>
+    <div class="formtag" id="formTag"></div>
+    <div id="trouble" hidden></div>
+  </div>
+
+  <div class="card">
+    <div class="h2">join your co-pilot</div>
+    <div class="join">
+      <input id="pasteBox" placeholder="paste their string (tdm1/…) and press Connect" autocomplete="off" spellcheck="false">
+      <button class="primary" id="joinBtn">Connect</button>
+    </div>
+    <div class="hint" id="joinHint"></div>
+    <div class="sep"></div>
+    <div class="ssoon">
+      <div class="txt" id="myCode">--------</div>
+      <div class="badge" id="codeBadge">SOON</div>
+      <div class="grow muted" style="font-size:12.5px" id="codeNote">codes need a rendezvous server</div>
+    </div>
+  </div>
+
+  <div class="card" id="syncCard">
+    <div class="h2">ground services</div>
+    <div class="chips" id="chips"></div>
+    <div class="sep"></div>
+    <div class="who" id="who"></div>
+    <div class="sep"></div>
+    <div class="act" id="act"></div>
+  </div>
+
+  <div class="card">
+    <div class="h2">a word for the other seat</div>
+    <div class="join">
+      <input id="noteText" placeholder="sends to their log, not the simulator" autocomplete="off">
+      <button id="noteSend">Send</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Settings</summary>
+      <div class="grid">
+        <label>this cockpit</label><input id="sName" placeholder="name your co-pilot sees">
+        <label>GSX server</label><input id="sGsx" placeholder="ws://127.0.0.1:8744">
+        <label>room port</label><input id="sPort" placeholder="8790">
+        <label>udp port</label><input id="sUdp" placeholder="8790">
+        <label>passphrase</label><input id="sPass" placeholder="optional">
+        <label>rendezvous</label><input id="sRdv" placeholder="host:port of a phone-book server (for codes, later)">
+        <label>relay</label><input id="sRelay" placeholder="ws://your-vps:8791 (last resort)">
+        <label>updates</label>
+        <div>
+          <label class="chk"><input type="checkbox" id="sUpd"><span><b>Ask GitHub now and then whether a newer version exists.</b> It sends the version number and nothing else; no account, no check-in beyond that.</span></label>
+          <div class="row" style="margin-top:6px"><button class="ghost sm" id="upNow">Check now</button><span class="dim" id="upMsg" style="font:12px/1.6 var(--mono)"></span></div>
+        </div>
+        <label>the link</label>
+        <div>
+          <label class="chk"><input type="checkbox" id="sOpaque"><span><b>Send a scrambled string.</b> Longer, and nothing in it says where you are. The person you send it to opens it as normal.</span></label>
+          <label class="chk"><input type="checkbox" id="sHide"><span><b>Keep it masked here.</b> Blurred in this window until you press Show — for when someone is looking at your screen.</span></label>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="primary sm" id="sSave">Save</button>
+        <button class="ghost sm" id="leave">Leave their room</button>
+        <span class="grow"></span>
+        <button class="ghost sm" id="quit">Quit</button>
+      </div>
+      <div class="hint" id="setHint"></div>
+    </details>
+    <details>
+      <summary>What the app is doing</summary>
+      <div class="grid" id="diag"></div>
+      <div class="logbox" id="log"></div>
+    </details>
+  </div>
+
+  <div class="veil" id="veil" hidden>
+    <div class="card">
+      <h3>Before you send that string</h3>
+      <ul>
+        <li>It is a <b>key</b>. Anyone holding it joins your room and can move your parked aircraft around &mdash; there is no password behind it unless you set one.</li>
+        <li>The plain string contains <b>your public address</b>. Fine to send to one person you named. Not for a group chat, a forum, or a screenshot that outlives the flight.</li>
+        <li>Settings has a <b>scrambled</b> form that carries no readable address, and a mask for the window itself.</li>
+        <li>Nothing is sent through us. There is no "us" &mdash; both cockpits talk directly, and a set of ground services stays in your own log.</li>
+      </ul>
+      <div class="row"><button class="primary" id="veilOK">Understood</button></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>v<b id="fVer">0.2</b></span>
+    <span>room <b id="fRoom">—</b></span>
+    <span>log <b id="fLog">tandem.log</b></span>
+    <span class="dim">closing the window keeps syncing — tray icon has Show / Hide / Quit</span>
+    <span id="fUpd"></span>
+  </footer>
+
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+async function api(path, body){
+  const opt = body === undefined ? {} : {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body)};
+  const r = await fetch(path, opt);
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || ('http '+r.status));
+  return d;
+}
+
+let S = null, logs = [], lastConnect = 0, dialAge = 0, gotFirst = false;
+let invite = {code:'', form:'plain'};   // the real string; the window may show a masked copy
+let lastLink = null;                   // so a render never stomps a checkbox mid-click
+
+function stateOf(s){
+  const a = s.app, g = s.status.gsx, peers = (s.status.link&&s.status.link.peers)||[];
+  if(!g.connected) return {k:'broken', title:'GSX is not answering',
+    sub:'Tandem reads your GSX server at '+g.url+'. Everything else waits on that.'};
+  if(peers.length) return {k:'together', title:'You and '+peers.map(p=>p.name).join(' + ')+' share one ramp',
+    sub:'Do a service on either cockpit and the other follows. This box is also hosting room '+a.room+'.'};
+  if(!(a.public && a.public.length) && !a.can.relay) return {k:'blocked',
+    title:'This box has no public address',
+    sub:'STUN heard nothing back, so there is nothing honest to put in a room string. On the same network the string below still works. Between cities you need a relay: run "tandem relay" on any machine both of you can reach, then put its ws:// address in Settings.'};
+  if(sinceConnect() < 40) return {k:'knocking', title:'Looking for them…',
+    sub:'We are dialling and punching their address. NAT holes take a few seconds; a minute means something is blocked.'};
+  return {k:'waiting', title:'Send this string to them',
+    sub:'They paste it into the box below and press Connect. Nothing to install, no account, nothing running in between.'};
+}
+function sinceConnect(){ return lastConnect ? (Date.now()-lastConnect)/1000 : 999 }
+
+function render(){
+  if(!S) return;
+  const s = S, a = s.app, g = s.status.gsx, st = stateOf(s);
+  const peers = (s.status.link && s.status.link.peers) || [];
+
+  $('#mark').className = 'mark ' + (!g.connected ? 'bad' : peers.length ? 'ok' : (st.k === 'blocked' ? 'bad' : 'warn'));
+  $('#live').textContent = gotFirst ? 'live' : '…';
+  $('#hero').className = 'card ' + st.k;
+  $('#eyebrow').textContent = ({broken:'blocked', blocked:'stuck', knocking:'connecting', waiting:'ready', together:'connected'})[st.k];
+  $('#big').textContent = st.title;
+  $('#sub').textContent = st.sub;
+
+  $('#stringRow').hidden = !(st.k === 'waiting' || st.k === 'knocking' || st.k === 'blocked');
+  paintString();
+  $('#veil').hidden = !!(a.link && a.link.warnAck) || !gotFirst;
+  $('#trouble').hidden = !(st.k === 'broken' || st.k === 'blocked' || (st.k === 'knocking' && sinceConnect() > 25));
+  if(st.k === 'blocked'){
+    $('#trouble').className = 'trouble';
+    $('#trouble').innerHTML = 'Your router is probably blocking the STUN probes. Ask whoever runs your company VPS, or leave <b>tandem relay --port 8791</b> running on either PC that has a free port, and put <b>ws://that-address:8791</b> into Settings → relay on both cockpits.';
+  } else if(st.k === 'broken'){
+    $('#trouble').hidden = false;
+    $('#trouble').className = 'trouble';
+    $('#trouble').innerHTML = 'Open <b>GSX Settings</b> → <b>Remote control server</b> → <b>Enabled</b>. It listens on port 8744 and needs no restart of MSFS. This page checks itself, so it will clear on its own.';
+  } else if(st.k === 'knocking' && sinceConnect() > 25){
+    $('#trouble').className = 'trouble';
+    $('#trouble').innerHTML = 'Still nobody in '+Math.round(sinceConnect())+'s. The usual cause is <b>their Windows firewall</b> dropping our packets: they need to run <b>allow-in-firewall.bat</b> once. The other cause is a router that no punch can pass — then you want a relay.';
+  }
+
+  const ph = g.phases || {};
+  const order = Object.keys(ph).sort((x,y)=>rank(ph[x])-rank(ph[y]) || x.localeCompare(y));
+  $('#chips').innerHTML = order.length ? order.map(k=>{
+    const p = ph[k], cls = p.state==='idle'||p.state==='off' ? '' : (p.state==='active'||p.state==='in progress' ? 'act run' : 'run');
+    return `<div class="chip ${cls}"><i></i><b>${p.label||k}</b><span>${p.state}</span></div>`;
+  }).join('') : '<div class="dim" style="font-size:13px">no services seen yet — open the GSX menu once and they appear here</div>';
+
+  $('#who').innerHTML = [`<span class="me">${a.name||'this cockpit'} · you</span>`]
+    .concat(peers.map(p=>`<span>${p.name||'peer'} · ${via(p)}</span>`)).join('') +
+    (peers.length ? '' : '<span class="dim">nobody else yet</span>');
+
+  const rec = ((s.status.sync&&s.status.sync.recent)||[]).slice(-7).reverse();
+  $('#act').innerHTML = rec.length ? rec.map(r=>
+    `<div>${stamp(r.ts)} <b class="${r.src===a.name?'you':'them'}">${esc(r.src||'—')}</b> ${esc(why(r))}</div>`).join('')
+    : `<div class="dim">quiet so far — anything either cockpit does shows up here</div>`;
+
+  $('#myCode').textContent = a.code || '--------';
+  const codeOK = !!(a.can && a.can.code);
+  $('#codeBadge').textContent = codeOK ? 'LIVE' : (a.rendezvous ? 'STALE' : 'OFF');
+  $('#codeBadge').className = 'badge ' + (codeOK ? 'ok' : 'warn');
+  $('#codeNote').innerHTML = codeOK
+    ? 'your code, for whoever you tell it. Both boxes reach the same rendezvous, so no address changes hands.'
+    : (a.rendezvous
+        ? 'that rendezvous has not confirmed your code lately - is it still running?'
+        : 'a code carries no address, so it only works if both boxes know one phone-book server: put host:port in Settings → rendezvous, or run <b>tandem discover --port 8788</b> somewhere you can both reach. Until then, use the string.');
+  const up = a.update || {};
+  const fu = $('#fUpd');
+  if (up.newer) { fu.className = 'dim up'; fu.innerHTML = '<a href="' + up.url + '" target="_blank">Tandem ' + up.latest + ' is out</a>'; }
+  else if (!a.checkUpdates) { fu.className = 'dim'; fu.textContent = 'update checks off'; }
+  else if (up.latest) { fu.className = 'dim'; fu.textContent = ''; }
+  else { fu.className = 'dim'; fu.textContent = ''; }
+  $('#upMsg').textContent = up.newer ? ('a newer version is listed: ' + up.latest) : (up.fail ? up.fail : 'this is the newest release');
+  if (document.activeElement !== $("#sUpd")) $("#sUpd").checked = !!a.checkUpdates;
+  $('#fVer').textContent = a.version; $('#fRoom').textContent = a.room || '—'; $('#fLog').textContent = a.logFile;
+  $('#pasteBox').disabled = false;
+  if(document.activeElement !== $('#pasteBox')) $('#pasteBox').placeholder =
+    st.k==='together' ? 'that switches you into their room' : 'paste their string (tdm1/…) or type their 8-character code';
+
+  const fill = !$('#sName').value;
+  if(fill){
+    $('#sName').value=a.name||''; $('#sGsx').value=g.url||''; $('#sPort').value=a.listening||'';
+    $('#sUdp').value=a.udp||''; $('#sRdv').value=a.rendezvous||''; $('#sRelay').value=a.relays||'';
+    $('#sPass').value='';
+  }
+  const lk = a.link || {opaque:false, hide:false};
+  if (!lastLink || lastLink.opaque !== lk.opaque) $('#sOpaque').checked = lk.opaque;
+  if (!lastLink || lastLink.hide !== lk.hide) $('#sHide').checked = lk.hide;
+  lastLink = lk;
+  $('#leave').textContent = peers.length || a.room ? 'Leave '+(peers.length?'their room':'')+' and start fresh' : 'Leave their room';
+  $('#diag').innerHTML = [
+    ['this box', (a.name||'?')+' · '+a.mode],
+    ['reachable at', (a.public&&a.public.length)?a.public.join('<br>'):'<span style="color:var(--bad)">STUN heard nothing back</span>'],
+    ['room port', a.listening? 'tcp '+a.listening+' · udp '+a.udp : 'not listening'],
+    ['traffic', 'rx '+s.status.link.stats.rx+' · tx '+s.status.link.stats.tx+(s.status.link.stats.rejected?' · rejected '+s.status.link.stats.rejected:'')],
+    ['applied from them', String(s.status.sync.counters.appliedRemote)],
+    ['uptime', Math.floor(a.uptime/60)+'m '+(a.uptime%60)+'s'],
+  ].map(([k,v])=>`<label>${k}</label><div class="muted" style="font:12px/1.5 var(--mono)">${v}</div>`).join('');
+}
+function rank(p){ return (p.state==='active'||p.state==='in progress')?0 : (p.state==='idle'||p.state==='off')?2:1 }
+function via(p){ return (p.paths&&p.paths.length)?String(p.paths[0]).replace(/^.*:(\/\/)?/,''):(p.via||'linked') }
+function why(r){ return (r.why||r.kind||'—') }
+function stamp(ts){ return ts? new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '' }
+function esc(x){ return String(x).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) }
+
+function connect(){
+  const es = new EventSource('/api/events');
+  es.addEventListener('status', e => { S = JSON.parse(e.data); gotFirst = true; render(); });
+  es.addEventListener('log', e => {
+    const r = JSON.parse(e.data);
+    logs.push(r); if(logs.length>240) logs.shift();
+    $('#log').innerHTML = logs.slice(-120).map(l=>
+      `<div class="${l.lvl}"><time>${new Date(l.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</time>${esc(l.tag?l.tag+' ':'')}${esc(l.msg)}</div>`).join('');
+    const box=$('#log'); box.scrollTop = box.scrollHeight;
+    if(!S || gotFirst) render();
+  });
+  es.onerror = () => { gotFirst = false; $('#live').textContent = 'reconnecting…'; };
+}
+
+function flash(el, txt, cls){ el.textContent = txt; el.className = 'hint ' + (cls||''); }
+
+$('#copyBtn').onclick = async () => {
+  try { await navigator.clipboard.writeText(invite.code); }
+  catch { const t=document.createElement('textarea'); t.value=invite.code; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  const b=$('#copyBtn'); b.textContent='Copied'; b.classList.add('copylab');
+  setTimeout(()=>{ b.textContent='Copy'; b.classList.remove('copylab') }, 1600);
+};
+
+let stringStamp = 0;
+async function ensureString(){
+  if(Date.now()-stringStamp < 20000) return;
+  stringStamp = Date.now();
+  try { invite = await api('/api/invite'); }
+  catch(e){ invite = {code:'— ' + e.message, form:'error'}; }
+  paintString();
+}
+
+function maskAddr(c){
+  if(!c) return '—';
+  if(/^tdm1\//.test(c) || /^gsx1\//.test(c)){
+    const p = c.split('/');
+    if(p.length > 1) p[1] = '•'.repeat(Math.min(16, Math.max(7, p[1].length)));
+    return p.join('/');
+  }
+  if(/^tdm1~/.test(c)) return 'tdm1~' + '•'.repeat(22) + c.slice(-4);
+  return c.slice(0,6) + '•'.repeat(Math.max(6, Math.min(28, c.length-10))) + c.slice(-4);
+}
+
+function paintString(){
+  const lk = (S && S.app.link) || {hide:false};
+  const v = $('#stringVal');
+  v.textContent = lk.hide ? maskAddr(invite.code) : (invite.code || '—');
+  $('#revealBtn').textContent = lk.hide ? 'Show' : 'Hide';
+  $('#revealBtn').title = lk.hide ? 'reveal the address on this screen only' : 'mask the address';
+  const tag = $('#formTag');
+  if(invite.form === 'scrambled'){ tag.className = 'formtag'; tag.innerHTML = '<b>scrambled</b> &middot; nothing in it gives your address away &middot; ' + invite.code.length + ' characters'; }
+  else if(invite.form === 'long'){ tag.className = 'formtag risk'; tag.innerHTML = '<b>long form</b> &middot; carries every address this box has, so it is the least private of them &middot; ' + invite.code.length + ' characters'; }
+  else if(invite.form === 'plain'){ tag.className = 'formtag risk'; tag.innerHTML = '<b>plain</b> &middot; your public address is readable in it &middot; switch to a scrambled string in Settings'; }
+  else { tag.className = 'formtag'; tag.innerHTML = ''; }
+}
+
+$('#revealBtn').onclick = async () => {
+  const hide = !((S && S.app.link) || {}).hide;
+  try { await api('/api/config', {hide}); if(S) S.app.link.hide = hide; lastLink = null; paintString(); }
+  catch(e){ flash($('#joinHint'), e.message, 'bad'); }
+};
+$('#veilOK').onclick = async () => {
+  const v = $('#veil');
+  v.hidden = true; v.style.display = 'none';   // whatever the stylesheet says
+  try { await api('/api/config', {warnAck:true}); if(S) S.app.link.warnAck = true; } catch(e){}
+};
+
+$('#joinBtn').onclick = async () => {
+  const v = $('#pasteBox').value.trim();
+  if(!v) { flash($('#joinHint'),'paste their string first','bad'); return; }
+  flash($('#joinHint'), 'connecting…');
+  lastConnect = Date.now();
+  try { const d = await api('/api/paste', {code:v}); $('#pasteBox').value=''; flash($('#joinHint'), d.via==='rendezvous'?'calling their code…':'dialling them now'); }
+  catch(e){ flash($('#joinHint'), e.message, 'bad'); }
+  render();
+};
+$('#pasteBox').addEventListener('keydown', e => { if(e.key==='Enter') $('#joinBtn').click(); });
+$('#noteSend').onclick = async () => {
+  const t = $('#noteText').value.trim(); if(!t) return;
+  try { await api('/api/note',{text:t}); $('#noteText').value=''; flash($('#joinHint'),'said it','ok'); } catch(e){ flash($('#joinHint'),e.message,'bad'); }
+};
+$('#noteText').addEventListener('keydown', e => { if(e.key==='Enter') $('#noteSend').click(); });
+$('#sSave').onclick = async () => {
+  const body = {name:$('#sName').value, gsxUrl:$('#sGsx').value, port:+$('#sPort').value||0,
+    udpPort:+$('#sUdp').value||0, rendezvous:$('#sRdv').value.trim(), relay:$('#sRelay').value.trim(),
+    opaque:$('#sOpaque').checked, hide:$('#sHide').checked};
+  try {
+    await api('/api/config', body);
+    const pass = $('#sPass').value;
+    if(pass !== undefined) await api('/api/connect', {pass});   // the passphrase lives with the room
+    flash($('#setHint'),'saved — ports need a restart of the app to move the listeners','ok'); stringStamp=0; lastLink=null;
+  } catch(e){ flash($('#setHint'), e.message, 'bad'); }
+  setTimeout(render, 800);
+};
+$('#sUpd').onchange = async () => {
+  try { await api('/api/config', {checkUpdates:$('#sUpd').checked}); flash($('#setHint'), $('#sUpd').checked ? 'will ask github every six hours' : 'will not look for updates', 'ok'); }
+  catch(e){ flash($('#setHint'), e.message, 'bad'); }
+};
+$('#upNow').onclick = async () => {
+  $('#upMsg').textContent = 'asking github…';
+  try { const u = await api('/api/update', {}); S.app.update = u; render(); }
+  catch(e){ $('#upMsg').textContent = e.message; }
+};
+$('#sOpaque').onchange = async () => {
+  try { await api('/api/config', {opaque:$('#sOpaque').checked}); stringStamp = 0; await ensureString(); }
+  catch(e){ flash($('#setHint'), e.message, 'bad'); }
+};
+$('#sHide').onchange = async () => {
+  try { await api('/api/config', {hide:$('#sHide').checked}); if(S) S.app.link.hide = $('#sHide').checked; paintString(); }
+  catch(e){ flash($('#setHint'), e.message, 'bad'); }
+};
+$('#leave').onclick = async () => {
+  try { await api('/api/disconnect',{}); lastConnect = 0; flash($('#joinHint'),'you are hosting a fresh room','ok'); stringStamp = 0; ensureString(); render(); }
+  catch(e){ flash($('#joinHint'), e.message, 'bad'); }
+};
+$('#quit').onclick = async () => { try { await api('/api/quit',{}); } catch(e){} document.body.innerHTML = '<div style="padding:40px;font-family:var(--mono);color:#8496ae">closing…</div>'; };
+
+setInterval(()=>{ if(S && stateOf(S).k==='knocking') render(); stringStamp && ensureString(); }, 1000);
+connect();
+ensureString();
+</script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+package conf
+
+import (
+	"crypto/rand"
+	"encoding/json"
+	"math/big"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+type Gsx struct {
+	URL       string   `json:"url"`
+	Channels  []string `json:"channels"`
+	Reconnect bool     `json:"reconnect"`
+}
+
+type Net struct {
+	Mode       string   `json:"mode"`
+	Bind       string   `json:"bind"`
+	Port       int      `json:"port"`
+	UDPPort    int      `json:"udpPort"`
+	Room       string   `json:"room"`
+	Pass       string   `json:"pass"`
+	Name       string   `json:"name"`
+	RelayURLs  []string `json:"relayUrls"`
+	Rendezvous string   `json:"rendezvous"`
+	ID         string   `json:"id"`
+}
+
+type Link struct {
+	Opaque  bool `json:"opaque"`
+	Hide    bool `json:"hide"`
+	WarnAck bool `json:"warnAck"`
+}
+
+type Sync struct {
+	Role             string `json:"role"`
+	EchoMs           int    `json:"echoMs"`
+	DebounceMs       int    `json:"debounceMs"`
+	MirrorMenuPicks  bool   `json:"mirrorMenuPicks"`
+	AutoReconcile    bool   `json:"autoReconcile"`
+	ReconcileSeconds int    `json:"reconcileSeconds"`
+	ConfirmDigests   int    `json:"confirmDigests"`
+	AutoStop         bool   `json:"autoStop"`
+	GraceSeconds     int    `json:"graceSeconds"`
+	MaxReplays       int    `json:"maxReplaysPerService"`
+	CaptureState     bool   `json:"captureState"`
+}
+
+type Config struct {
+	Version int  `json:"version"`
+	GSX     Gsx  `json:"gsx"`
+	Net     Net  `json:"net"`
+	Sync    Sync `json:"sync"`
+	Link    Link `json:"link"`
+	UI      struct {
+		Port          int  `json:"port"`
+		AutoOpen      bool `json:"autoOpen"`
+		NoUpdateCheck bool `json:"noUpdateCheck"`
+	} `json:"ui"`
+	Log struct {
+		Level string `json:"level"`
+	} `json:"log"`
+	Peers []PeerHint `json:"peers,omitempty"`
+}
+
+type PeerHint struct {
+	Room  string `json:"room"`
+	Addr  string `json:"addr,omitempty"`
+	Where string `json:"where,omitempty"`
+	Last  int64  `json:"last"`
+}
+
+func Defaults() *Config {
+	c := &Config{Version: 1}
+	c.GSX.URL = "ws://127.0.0.1:8744"
+	c.GSX.Channels = []string{"state", "services", "menu", "prompts", "billing"}
+	c.GSX.Reconnect = true
+	c.Net.Mode = "solo"
+	c.Net.Bind = "0.0.0.0"
+	c.Net.Port = 8790
+	c.Net.UDPPort = 8790
+	c.Net.Room = ""
+	c.Net.Pass = ""
+	c.Net.RelayURLs = []string{}
+	c.Sync.Role = "symmetric"
+	c.Sync.EchoMs = 4000
+	c.Sync.DebounceMs = 60
+	c.Sync.MirrorMenuPicks = true
+	c.Sync.AutoReconcile = true
+	c.Sync.ReconcileSeconds = 5
+	c.Sync.ConfirmDigests = 2
+	c.Sync.AutoStop = false
+	c.Sync.GraceSeconds = 12
+	c.Sync.MaxReplays = 3
+	c.Sync.CaptureState = true
+	c.UI.Port = 8795
+	c.UI.AutoOpen = true
+	c.Log.Level = "info"
+	c.Net.Name = Hostname()
+	return c
+}
+
+func Dir() string {
+	base := os.Getenv("APPDATA")
+	if base == "" {
+		base = filepath.Join(os.TempDir(), "Tandem")
+		return base
+	}
+	d := filepath.Join(base, "Tandem")
+
+	if _, err := os.Stat(d); err != nil {
+		if prev := filepath.Join(base, "GSXSync"); dirExists(prev) {
+			migrate(prev, d)
+			return d
+		}
+	}
+	_ = os.MkdirAll(d, 0o755)
+	return d
+}
+
+func dirExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
+}
+
+func migrate(from, to string) {
+	if err := os.MkdirAll(to, 0o755); err != nil {
+		return
+	}
+	fs, err := os.ReadDir(from)
+	if err != nil {
+		return
+	}
+	for _, f := range fs {
+		if f.IsDir() || (!strings.HasSuffix(f.Name(), ".json") && !strings.HasSuffix(f.Name(), ".log")) {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(from, f.Name()))
+		if err == nil {
+			_ = os.WriteFile(filepath.Join(to, f.Name()), b, 0o644)
+		}
+	}
+}
+
+var Path string
+
+func ConfigPath() string {
+	if Path != "" {
+		return Path
+	}
+	return filepath.Join(Dir(), "config.json")
+}
+func LogPath() string { return filepath.Join(Dir(), "tandem.log") }
+
+func Load() *Config {
+	c := Defaults()
+	b, err := os.ReadFile(ConfigPath())
+	if err != nil {
+		return c
+	}
+
+	_ = json.Unmarshal(b, c)
+	if c.Net.Name == "" {
+		c.Net.Name = Hostname()
+	}
+	if c.GSX.URL == "" {
+		c.GSX.URL = Defaults().GSX.URL
+	}
+	return c
+}
+
+func (c *Config) Save() error {
+	b, _ := json.MarshalIndent(c, "", "  ")
+	return os.WriteFile(ConfigPath(), b, 0o644)
+}
+
+func Hostname() string {
+	h, err := os.Hostname()
+	if err != nil || h == "" {
+		return "cockpit"
+	}
+	return h
+}
+
+var slugBad = regexp.MustCompile(`[^a-z0-9._-]+`)
+
+func Slug(name string) string {
+	s := slugBad.ReplaceAllString(strings.ToLower(name), "-")
+	s = strings.Trim(s, "-.")
+	if s == "" {
+		return "cockpit"
+	}
+	if len(s) > 40 {
+		s = s[:40]
+	}
+	return s
+}
+
+func RoomCode() string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	out := make([]byte, 5)
+	for i := range out {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+		if err != nil {
+			out[i] = alphabet[(i*7+3)%len(alphabet)]
+			continue
+		}
+		out[i] = alphabet[n.Int64()]
+	}
+	return string(out)
+}
+
+func LocalIPs() []string {
+	out := []string{}
+	for _, a := range mustAddrs() {
+		out = append(out, a)
+	}
+	return out
+}
+
+func Code() string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	out := make([]byte, 8)
+	for i := range out {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+		if err != nil {
+			out[i] = alphabet[(i*7+3)%len(alphabet)]
+			continue
+		}
+		out[i] = alphabet[n.Int64()]
+	}
+	return string(out)
+}
