@@ -1,8 +1,9 @@
-Two switches the product was missing, and a way out of the room
+The installer asks where the aircraft live, and puts the bridge page there
 
-The dashboard carries shared cockpit as a choice rather than a fact: off, the link is stopped,
-the room is left, the ports are closed, and asking for an invite says so instead of handing one
-out. On, it all comes back without a restart. The aircraft's own switches got a card of their
-own - the bridge on or off, which names this airframe may be asked for, whether the room hears
-what the sim reports, and buttons that put the community page in the folder you named, or take
-out the one Tandem made.
+One more line on the install screen: the Community folder, prefilled with whatever Tandem finds
+on this machine, with a Find it button when it guesses wrong. Say yes and the bridge page goes
+in there as its own folder, marked as ours; uninstall takes that folder out and nothing else.
+The same on the command line, for an unattended run: --community, --no-bridge.
+
+It was tested into a temporary folder, not your real one, and D:\MSFS\Community still holds the
+same 134 things it did before.

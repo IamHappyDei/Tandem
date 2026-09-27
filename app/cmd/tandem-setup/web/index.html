@@ -57,6 +57,11 @@
       <div style="height:6px"></div>
       <label class="chk"><input type="checkbox" id="fw" checked> Let Tandem through Windows Firewall (needed in order to let others connect)</label>
       <label class="chk"><input type="checkbox" id="start" checked> Start Tandem when I sign in</label>
+      <div style="height:8px"></div>
+      <label class="fld">Where your aircraft live<input id="comm" placeholder="the Community folder MSFS reads">
+        <span class="hint" id="commHint">looking for it…</span>
+        <button class="ghost sm" id="commFind" type="button">Find it</button></label>
+      <label class="chk"><input type="checkbox" id="bridge" checked> Put the Tandem bridge page there <span class="mut">(the aircraft's own switches — Tandem does not use it unless you switch it on later)</span></label>
     </div>
 
     <div class="row">
@@ -95,6 +100,8 @@ function post(p,b){
 fetch('/api/info').then(r=>r.json()).then(i=>{
   $('#pAll').textContent=i.all; $('#pMe').textContent=i.mine; $('#ver').textContent=i.version;
   $('#noAdmin').hidden = !!i.elevated;
+  if(i.community){ $('#comm').value=i.community; $('#commHint').textContent = i.bridgeThere ? 'the bridge page is already there' : 'found it'; }
+  else { $('#commHint').textContent = 'nothing found - type it in, or name it in Tandem later'; }
   if (i.singleFile) $('#note').textContent = 'Everything needed is inside this one file.';
   if(i.installed){
     $('#h').textContent='Tandem is already on this PC';
@@ -133,7 +140,8 @@ $('#go').onclick=()=>{
   if(busy) return; busy=true; $('#form').hidden=true; $('#run').hidden=false; $('#log').innerHTML='';
   $('#title').textContent = $('#go').textContent==='Update' ? 'Updating…' : 'Installing…';
   $('#bar').style.width='5%';
-  post('/api/install',{where:document.querySelector('[name=where]:checked').value, firewall:$('#fw').checked, autorun:$('#start').checked})
+  post('/api/install',{where:document.querySelector('[name=where]:checked').value, firewall:$('#fw').checked, autorun:$('#start').checked,
+    community:$('#comm').value.trim(), bridge:$('#bridge').checked})
     .catch(e=>{ busy=false; $('#form').hidden=false; $('#run').hidden=true; line('bad',e.message); });
 };
 $('#uninstall').onclick=()=>{
@@ -147,3 +155,9 @@ $('#uninstall').onclick=()=>{
 $('#launch').onclick=()=>{ post('/api/launch').catch(()=>{}); setTimeout(()=>window.close(),300); };
 $('#close').onclick=()=>{ post('/api/quit').catch(()=>{}); setTimeout(()=>window.close(),200); };
 </script></body></html>
+$('#commFind').onclick=async()=>{
+  $('#commHint').textContent='looking…';
+  const d = await (await fetch('/api/info?fresh='+Date.now(),{cache:'no-store'})).json();
+  if(d.community){ $('#comm').value=d.community; $('#commHint').textContent='found it'; }
+  else $('#commHint').textContent='still nothing - type the path in';
+};

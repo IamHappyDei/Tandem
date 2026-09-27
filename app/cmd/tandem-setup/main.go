@@ -67,6 +67,8 @@ func main() {
 	dir := fs.String("dir", "", "install folder (default Program Files\\Tandem)")
 	port := fs.Int("ui", 0, "internal: port the setup window should talk to")
 	noElevate := fs.Bool("no-elevate", false, "internal: this copy already asked for administrator rights")
+	community := fs.String("community", "", "where the aircraft live (the Community folder)")
+	noBridge := fs.Bool("no-bridge", false, "do not put the Tandem bridge page in that folder")
 	_ = fs.Parse(normalizeArgs(os.Args[1:]))
 
 	sink = os.Stdout
@@ -82,6 +84,7 @@ func main() {
 	case *uninstall:
 		r := &stdoutRep{}
 		r.step("removing Tandem")
+		removeBridge(r)
 		if admin, err := runUninstall(true, *purge, r); err != nil || admin {
 			if err != nil {
 				fmt.Fprintln(sink, "uninstall failed:", err)
@@ -115,6 +118,7 @@ func main() {
 		fmt.Fprintln(sink, "install failed:", err)
 		os.Exit(1)
 	}
+	placeBridge(!*noBridge, *community, r)
 	if !*quiet {
 		fmt.Fprintln(sink, "\ninstalled. Tandem is starting.")
 		go func() { _ = exec.Command(t.exe()).Start() }()

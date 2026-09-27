@@ -17,6 +17,10 @@ import (
 	"sync"
 	"time"
 
+	"tandem/internal/aircraft"
+	"tandem/internal/bridge"
+	"tandem/internal/conf"
+	"tandem/internal/logx"
 	"tandem/internal/ui"
 )
 
@@ -123,14 +127,16 @@ func (g *gui) info(w http.ResponseWriter, r *http.Request) {
 	}
 	self, _ := os.Executable()
 	writeJSON(w, map[string]any{
-		"version":    ui.Version,
-		"all":        all.dir,
-		"mine":       mine.dir,
-		"installed":  where,
-		"here":       where != "" && strings.EqualFold(filepath.Dir(self), where),
-		"elevated":   g.elev,
-		"singleFile": hasPayload(),
-		"whatItSays": payloadState(),
+		"version":     ui.Version,
+		"all":         all.dir,
+		"mine":        mine.dir,
+		"installed":   where,
+		"here":        where != "" && strings.EqualFold(filepath.Dir(self), where),
+		"elevated":    g.elev,
+		"singleFile":  hasPayload(),
+		"whatItSays":  payloadState(),
+		"community":   communityGuess(),
+		"bridgeThere": bridgeInstalled(communityGuess()),
 	})
 }
 
@@ -207,10 +213,14 @@ func (g *gui) doInstall(body map[string]any, r rep) {
 		return
 	}
 	err := runInstall(&t, boolOf(body["firewall"]), boolOf(body["autorun"]), r)
+	if err == nil {
+		err = placeBridge(boolOf(body["bridge"]), strOf(body["community"]), r)
+	}
 	g.emit("done", map[string]any{"ok": err == nil, "what": "install", "error": errText(err), "dir": t.dir})
 }
 
 func (g *gui) doUninstall(body map[string]any, r rep) {
+	removeBridge(r)
 	admin, err := runUninstall(boolOf(body["firewall"]), boolOf(body["purge"]), r)
 	g.emit("done", map[string]any{"ok": err == nil, "what": "uninstall", "error": errText(err), "needAdmin": admin && !g.elev})
 }
@@ -337,3 +347,54 @@ func (g *gui) watchWindow(w *ui.Window) {
 		}
 	}
 }
+
+func communityGuess() string { return aircraft.Open("").CommunityDir() }
+
+func bridgeInstalled(dir string) bool { return dir != "" && bridge.InstalledIn(dir) }
+
+func placeBridge(want bool, given string, r rep) error {
+	dir := strings.TrimSpace(given)
+	if dir == "" {
+		dir = communityGuess()
+	}
+	if dir == "" {
+		r.ok("no community folder was found - open Tandem and name it there, then press the bridge button")
+		return nil
+	}
+	st := aircraft.Open(aircraftPath())
+	st.SetCommunity(dir)
+	if err := st.Save(); err != nil {
+		r.bad("the community folder could not be written down: " + err.Error())
+	} else {
+		r.ok("aircraft will be looked for in " + dir)
+	}
+	if !want {
+		r.run("leaving the sim's own folders alone")
+		return nil
+	}
+	dest, err := bridge.New(0, logx.New("warn")).InstallInto(dir)
+	if err != nil {
+		r.bad("the bridge page could not go in " + dir + ": " + err.Error())
+		return nil
+	}
+	r.ok("the bridge page is in " + dest + " - Tandem only uses it if you switch it on")
+	return nil
+}
+
+func removeBridge(r rep) {
+	dir := communityGuess()
+	if dir == "" || !bridge.InstalledIn(dir) {
+		return
+	}
+	if err := bridge.UninstallFrom(dir); err != nil {
+		r.bad("the bridge page could not be taken out of " + dir)
+		return
+	}
+	r.ok("the bridge page Tandem put in " + dir + " is gone")
+}
+
+func aircraftPath() string {
+	return filepath.Join(conf.Dir(), "aircraft.json")
+}
+
+func strOf(v any) string { t, _ := v.(string); return t }
