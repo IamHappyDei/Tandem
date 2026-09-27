@@ -7,6 +7,7 @@ mkdir -p .smoke
 rm -rf .smoke/appdata && mkdir -p .smoke/appdata/Tandem
 export APPDATA="$(cd .smoke/appdata && pwd -W)"
 export PATH="/e/go/bin:$PATH" GOTOOLCHAIN=local
+command -v node >/dev/null 2>&1 || { echo "node is missing - the page-parse guard cannot run"; exit 1; }
 cp dist/tandem.exe dist/b.exe   # a second copy: Windows will not let two instances share one file handle for upgrades
 go build -o .smoke/wsprobe.exe ./tools/wsprobe || { echo "FAIL wsprobe would not build"; exit 1; }
 taskkill //F //IM tandem.exe //IM b.exe >/dev/null 2>&1
@@ -94,6 +95,23 @@ post 18795 note '{"text":"chocks in, over"}' >/dev/null
 sleep 1
 grep -h "chocks in" .smoke/b.log | sed 's/\x1b\[[0-9;]*m//g' | sed 's/^/    /'
 need "the note got through" "1" "$(grep -hc 'chocks in' .smoke/b.log | tail -1 | tr -d ' ')"
+
+echo "=== the pages are parseable, not just present"
+for pg in internal/ui/web/index.html cmd/tandem-setup/web/index.html; do
+  python3 - "$pg" <<'PYX'
+import re, subprocess, sys
+src = open(sys.argv[1], encoding='utf-8').read()
+ok = True
+for i, b in enumerate(re.findall(r'<script[^>]*>(.*?)</script>', src, re.S)):
+    open('.smoke/chk%d.js' % i, 'w', encoding='utf-8').write(b)
+    if subprocess.run(['node', '--check', '.smoke/chk%d.js' % i], capture_output=True).returncode:
+        ok = False
+        print('    FAIL %s block %d does not parse - every button on that page would be dead' % (sys.argv[1], i))
+if ok: print('    ok   ' + sys.argv[1] + ' parses (' + str(src.count('<script')) + ' script block)')
+sys.exit(0 if ok else 1)
+PYX
+  [ $? -ne 0 ] && fails=$((fails+1))
+done
 
 echo "=== settings are written down, not just remembered"
 post 18795 config '{"shared":true}' >/dev/null

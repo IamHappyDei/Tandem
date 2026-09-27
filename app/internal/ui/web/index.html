@@ -607,8 +607,7 @@ $('#simBtn').onclick = () => simPost({enabled: !(S && S.app && S.app.sim && S.ap
 $('#simInstall').onclick = () => simPost({enabled: true}, 'the bridge page is in the community folder');
 $('#simRemove').onclick = async () => { try { await api('/api/sim', {uninstall:true}); flash($('#simMsg'),'the folder Tandem made is gone','ok'); } catch(e){ flash($('#simMsg'), e.message,'bad'); } };
 $('#simPeers').onchange = () => simPost({simToPeer: $('#simPeers').checked}, $('#simPeers').checked ? 'the room hears the aircraft' : 'the aircraft stays between you and Tandem');
-$('#simWatch').onchange = () => simPost({watch: $('#simWatch').value.split('
-').map(x=>x.trim()).filter(x=>x)}, 'the sim will be asked for those');
+$('#simWatch').onchange = () => simPost({watch: $('#simWatch').value.split(String.fromCharCode(10)).map(x=>x.trim()).filter(x=>x)}, 'the sim will be asked for those');
 async function simPost(body, msg){
   try { const r = await api('/api/sim', body); if (r.error) { flash($('#simMsg'), r.error, 'bad'); return; }
     flash($('#simMsg'), msg, 'ok'); await refresh(); }
@@ -617,8 +616,7 @@ async function simPost(body, msg){
 function paintSim(sm, a){
   const box = $('#simWatch');
   if (document.activeElement !== box && !(sm.wanted||[]).length === false) { /* keep the user's typing */ }
-  if (document.activeElement !== box) box.value = (sm.wanted||[]).join('
-');
+  if (document.activeElement !== box) box.value = (sm.wanted||[]).join(String.fromCharCode(10));
   if (document.activeElement !== $("#simPeers")) $("#simPeers").checked = !!sm.toPeers;
   $('#simBtn').textContent = 'Sim bridge: ' + (sm.enabled ? 'on' : 'off');
   $('#simBtn').className = 'ghost sm ' + (sm.enabled ? 'on' : 'off');
