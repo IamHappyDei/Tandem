@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ type assetRef struct {
 	Size   int64  `json:"size"`
 	Digest string `json:"digest,omitempty"`
 	HasURL bool   `json:"hasAsset"`
+	Error  string `json:"error,omitempty"`
 }
 
 type Update struct {
@@ -113,25 +115,48 @@ func less(a, b []int) bool {
 
 func (a *App) updateNow() Update {
 	u := checkUpdate(a.upClient)
+	if u.Newer {
+		if ref, why := installerFor(a.upClient, u.Latest); ref.Name != "" {
+			u.Asset = ref
+		} else {
+			u.Asset.Error = why
+		}
+	}
 	a.mu.Lock()
 	a.up = u
 	a.mu.Unlock()
-	if u.Newer {
-		a.log.Info("Tandem %s is out, you are on %s - %s", u.Latest, Version, u.URL)
-	} else if u.Fail != "" {
+	switch {
+	case u.Newer && u.Asset.Name != "":
+		a.log.Info("Tandem %s is out, you are on %s - %s is attached and ready", u.Latest, Version, u.Asset.Name)
+	case u.Newer:
+		a.log.Info("Tandem %s is out, you are on %s - %s", u.Latest, Version, u.Asset.Error)
+	case u.Fail != "":
 		a.log.Debug("update check: %s", u.Fail)
 	}
-	if u.Newer {
-		if rel, err := latestRelease(nil); err == nil && strings.EqualFold(rel.version(), u.Latest) {
-			if a2, err := pickInstaller(rel); err == nil {
-				u.Asset = assetRef{Name: a2.Name, Size: a2.Size, Digest: wantDigest(a2), HasURL: a2.BrowserDownloadURL != ""}
-			}
-		}
-		if u.Asset.Name == "" {
-			u.Fail = "no installer is attached to that release yet"
-		}
-	}
 	return u
+}
+
+func installerFor(client *http.Client, want string) (assetRef, string) {
+	rel, err := latestRelease(client)
+	if err != nil {
+		return assetRef{}, err.Error()
+	}
+	if !sameVersion(rel.version(), want) {
+		return assetRef{}, "the newest release is " + rel.version() + ", not the " + want + " the tag list announced"
+	}
+	a2, err := pickInstaller(rel)
+	if err != nil {
+		return assetRef{}, err.Error()
+	}
+	return assetRef{Name: a2.Name, Size: a2.Size, Digest: wantDigest(a2), HasURL: a2.BrowserDownloadURL != ""}, ""
+}
+
+func sameVersion(a, b string) bool {
+	va, vb := parseVer(a), parseVer(b)
+	if va == nil || vb == nil {
+		return strings.EqualFold(a, b)
+	}
+	return reflect.DeepEqual(va, vb)
 }
 
 func (a *App) updateInfo() Update {
@@ -165,8 +190,11 @@ func UpdateLine(u Update) string {
 		return fmt.Sprintf("Tandem %s is available - you have %s. Installer: %s (%s), ready to download",
 			u.Latest, u.Current, u.Asset.Name, mb(u.Asset.Size))
 	case u.Newer:
-		return fmt.Sprintf("Tandem %s is available - you have %s, but no installer is attached to that release yet: %s",
-			u.Latest, u.Current, u.URL)
+		msg := "it cannot be installed from here"
+		if u.Asset.Error != "" {
+			msg = plainFail(u.Asset.Error)
+		}
+		return fmt.Sprintf("Tandem %s is available - you have %s. %s - %s", u.Latest, u.Current, msg, u.URL)
 	case u.Latest != "" && less(parseVer(u.Latest), parseVer(Version)):
 		return fmt.Sprintf("you are ahead of the newest published release (%s)", u.Latest)
 	case u.Latest != "":

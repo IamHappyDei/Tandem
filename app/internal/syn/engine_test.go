@@ -298,3 +298,84 @@ func TestMain(m *testing.M) {
 var _ = http.StatusOK
 var _ = websocket.DefaultDialer
 var _ = sync.Mutex{}
+
+func TestGsxSyncOffSharesTheRoomButOrdersNothing(t *testing.T) {
+	l1, l2 := 18811, 18812
+	u1, u2 := 18911, 18912
+	a := newRig(t, "here", 18711, l1, u1, syn.EngineConfig{Role: "symmetric"})
+	defer a.stop(t)
+	b := newRig(t, "there", 18712, l2, u2, syn.EngineConfig{Role: "symmetric"})
+	defer b.stop(t)
+	if _, err := b.link.Dial(fmt.Sprintf("ws://127.0.0.1:%d", l1)); err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	wait(t, 5*time.Second, "both see one peer", func() bool {
+		return len(a.link.Peers()) == 1 && len(b.link.Peers()) == 1
+	})
+
+	b.engine.SetGsxSync(false)
+	a.toggle("Boarding")
+	time.Sleep(900 * time.Millisecond)
+	if got := b.state("Boarding"); got != "" && got != fake.Idle {
+		t.Errorf("there ran the service with gsx sync off: %q", got)
+	}
+	if n := b.cmds("service.trigger"); n != 0 {
+		t.Errorf("there received %d service.trigger command(s) while muted", n)
+	}
+	if st := b.engine.Status().Sync; st.GsxSync {
+		t.Errorf("status still claims gsx sync is on: %+v", st)
+	}
+	if st := b.engine.Status().Sync.Counters; st.Muted == 0 {
+		t.Errorf("a muted order was not counted: %+v", st)
+	}
+	if st := b.engine.Status().Sync; st.Mode != "room only" {
+		t.Errorf("mode said %q, want %q", st.Mode, "room only")
+	}
+
+	b.engine.SetGsxSync(true)
+	a.toggle("Catering")
+	wait(t, 4*time.Second, "sync back on reaches the other cockpit", func() bool {
+		return b.state("Catering") == fake.Active
+	})
+}
+
+func TestPausedSendsNothingAndAppliesNothing(t *testing.T) {
+	l1, l2 := 18821, 18822
+	u1, u2 := 18921, 18922
+	a := newRig(t, "here", 18721, l1, u1, syn.EngineConfig{Role: "symmetric"})
+	defer a.stop(t)
+	b := newRig(t, "there", 18722, l2, u2, syn.EngineConfig{Role: "symmetric"})
+	defer b.stop(t)
+	if _, err := b.link.Dial(fmt.Sprintf("ws://127.0.0.1:%d", l1)); err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	wait(t, 5*time.Second, "both see one peer", func() bool {
+		return len(a.link.Peers()) == 1 && len(b.link.Peers()) == 1
+	})
+
+	a.engine.SetPaused(true)
+	a.toggle("Boarding")
+	time.Sleep(900 * time.Millisecond)
+	if n := b.state("Boarding"); n == fake.Active {
+		t.Errorf("a paused cockpit broadcast an order")
+	}
+	if st := a.engine.Status().Sync; !st.Paused || st.Mode != "paused" {
+		t.Errorf("paused not reported: %+v", st)
+	}
+	if st := a.engine.Status().Sync.Counters; st.Broadcast != 0 || st.Muted == 0 {
+		t.Errorf("counters while paused: %+v", st)
+	}
+
+	b.engine.SetPaused(true)
+	a.engine.SetPaused(false)
+	a.toggle("Fuel")
+	time.Sleep(900 * time.Millisecond)
+	if got := b.state("Fuel"); got == fake.Active {
+		t.Errorf("a paused cockpit applied a peer order")
+	}
+	b.engine.SetPaused(false)
+	a.toggle("GPU")
+	wait(t, 4*time.Second, "resumed cockpit takes the order it is given", func() bool {
+		return b.state("GPU") == fake.Active
+	})
+}

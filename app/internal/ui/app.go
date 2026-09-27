@@ -67,7 +67,8 @@ func New(cfg *conf.Config, log *logx.Log) *App {
 		MirrorMenuPicks: cfg.Sync.MirrorMenuPicks, AutoReconcile: cfg.Sync.AutoReconcile,
 		ReconcileSeconds: cfg.Sync.ReconcileSeconds, ConfirmDigests: cfg.Sync.ConfirmDigests,
 		GraceSeconds: cfg.Sync.GraceSeconds, MaxReplays: cfg.Sync.MaxReplays,
-		CaptureState: cfg.Sync.CaptureState, Name: cfg.Net.Name,
+		CaptureState: cfg.Sync.CaptureState, GsxSyncDisabled: !cfg.Sync.GsxSync,
+		StartPaused: cfg.Sync.Paused, Name: cfg.Net.Name,
 	}, g, l, elog)
 	a := &App{cfg: cfg, log: log, gsx: g, link: l, engine: e, upSince: time.Now()}
 	return a
@@ -253,6 +254,8 @@ func (a *App) status(w http.ResponseWriter, r *http.Request) (any, error) {
 		"name":          a.cfg.Net.Name,
 		"uiPort":        a.cfg.UI.Port,
 		"logFile":       filepath.Base(conf.LogPath()),
+		"gsxSync":       a.cfg.Sync.GsxSync,
+		"paused":        a.cfg.Sync.Paused,
 		"update":        a.updateInfo(),
 		"checkUpdates":  !a.cfg.UI.NoUpdateCheck,
 		"link": map[string]any{
@@ -652,20 +655,24 @@ func (a *App) probeOnce(r *http.Request, body map[string]any) (any, error) {
 }
 
 func (a *App) saveConfig(r *http.Request, body map[string]any) (any, error) {
-	if v, ok := body["gsxUrl"].(string); ok && v != "" {
+	need := false
+	if v, ok := body["gsxUrl"].(string); ok && v != "" && v != a.cfg.GSX.URL {
 		a.cfg.GSX.URL = v
 		a.gsx.SetURL(v)
+		need = true
 	}
 	if v, ok := body["name"].(string); ok {
 		a.cfg.Net.Name = v
 		a.link.SetName(v)
 		a.engine.SetName(v)
 	}
-	if v, ok := body["port"]; ok {
+	if v, ok := body["port"]; ok && int(asFloat(v)) != a.cfg.Net.Port {
 		a.cfg.Net.Port = int(asFloat(v))
+		need = true
 	}
-	if v, ok := body["udpPort"]; ok {
+	if v, ok := body["udpPort"]; ok && int(asFloat(v)) != a.cfg.Net.UDPPort {
 		a.cfg.Net.UDPPort = int(asFloat(v))
+		need = true
 	}
 	if v, ok := body["role"].(string); ok {
 		a.cfg.Sync.Role = v
@@ -674,6 +681,14 @@ func (a *App) saveConfig(r *http.Request, body map[string]any) (any, error) {
 	if v, ok := body["reconcileSeconds"]; ok {
 		a.cfg.Sync.ReconcileSeconds = int(asFloat(v))
 		a.engine.SetReconcile(int(asFloat(v)))
+	}
+	if v, ok := body["gsxSync"].(bool); ok {
+		a.cfg.Sync.GsxSync = v
+		a.engine.SetGsxSync(v)
+	}
+	if v, ok := body["paused"].(bool); ok {
+		a.cfg.Sync.Paused = v
+		a.engine.SetPaused(v)
 	}
 	if v, ok := body["autoStop"]; ok {
 		b, _ := v.(bool)
@@ -720,7 +735,7 @@ func (a *App) saveConfig(r *http.Request, body map[string]any) (any, error) {
 		a.cfg.Link.WarnAck = true
 	}
 	_ = a.cfg.Save()
-	return map[string]any{"ok": true, "restartNeeded": true}, nil
+	return map[string]any{"ok": true, "restartNeeded": need}, nil
 }
 
 func mustJSON(v any) []byte {

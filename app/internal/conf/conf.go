@@ -36,6 +36,8 @@ type Link struct {
 }
 
 type Sync struct {
+	GsxSync          bool   `json:"gsxSync"`
+	Paused           bool   `json:"paused"`
 	Role             string `json:"role"`
 	EchoMs           int    `json:"echoMs"`
 	DebounceMs       int    `json:"debounceMs"`
@@ -85,6 +87,8 @@ func Defaults() *Config {
 	c.Net.Room = ""
 	c.Net.Pass = ""
 	c.Net.RelayURLs = []string{}
+	c.Sync.GsxSync = true
+	c.Sync.Paused = false
 	c.Sync.Role = "symmetric"
 	c.Sync.EchoMs = 4000
 	c.Sync.DebounceMs = 60

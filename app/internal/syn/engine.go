@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"tandem/internal/gsx"
@@ -29,6 +30,8 @@ type EngineConfig struct {
 	MaxReplays       int
 	AutoStop         bool
 	CaptureState     bool
+	GsxSyncDisabled  bool
+	StartPaused      bool
 	Name             string
 }
 
@@ -41,6 +44,7 @@ type Counters struct {
 	DroppedDupe     int `json:"droppedDupe"`
 	ReconcileFixes  int `json:"reconcileFixes"`
 	ReconcileSkiped int `json:"reconcileSkipped"`
+	Muted           int `json:"muted"`
 	Failed          int `json:"failed"`
 }
 
@@ -69,6 +73,8 @@ type Engine struct {
 	replays  map[string]int
 	digests  map[string]*room.Msg
 	counters Counters
+	gsxOn    atomic.Bool
+	paused   atomic.Bool
 	recent   []Recent
 	stop     chan struct{}
 	tickers  []*time.Ticker
@@ -87,13 +93,24 @@ func NewEngine(cfg EngineConfig, g *gsx.Client, l *room.Link, log *logx.Log) *En
 	if cfg.ConfirmDigests < 1 {
 		cfg.ConfirmDigests = 1
 	}
-	return &Engine{
+	e := &Engine{
 		cfg: cfg, gsx: g, link: l, log: log, id: randHex(4),
 		seen: map[string]bool{}, suppress: map[string]int64{},
 		touched: map[string]int64{}, drift: map[string]int{}, replays: map[string]int{},
 		digests: map[string]*room.Msg{}, stop: make(chan struct{}),
 	}
+	e.gsxOn.Store(!cfg.GsxSyncDisabled)
+	e.paused.Store(cfg.StartPaused)
+	return e
 }
+
+// live is the master switch: paused means the link stays up and the room can still
+// see this cockpit, but nothing is ordered anywhere - not here, not there.
+func (e *Engine) live() bool { return !e.paused.Load() }
+
+// syncing is GSX specifically: the room is still shared, only the ground services
+// are left alone.
+func (e *Engine) syncing() bool { return e.live() && e.gsxOn.Load() }
 
 func (e *Engine) Start() {
 	e.link.H.OnAction = e.onPeerAction
@@ -119,7 +136,7 @@ func (e *Engine) Start() {
 	rec := time.Duration(e.cfg.ReconcileSeconds) * time.Second
 	e.tickers = append(e.tickers, e.every(rec, func() { e.publishDigest() }))
 	e.tickers = append(e.tickers, e.every(time.Second, func() { e.sweep() }))
-	e.log.Info("engine up: role=%s id=%s reconcile=%s", e.cfg.Role, e.id, rec)
+	e.log.Info("engine up: role=%s id=%s reconcile=%s gsxSync=%v paused=%v", e.cfg.Role, e.id, rec, e.gsxOn.Load(), e.paused.Load())
 }
 
 func (e *Engine) Stop() {
@@ -146,6 +163,10 @@ func (e *Engine) every(d time.Duration, f func()) *time.Ticker {
 }
 
 func (e *Engine) onLocalChange(c Change) {
+	if !e.syncing() {
+		e.countMuted()
+		return
+	}
 	intents := Classify(c)
 	if len(intents) == 0 {
 		return
@@ -219,6 +240,11 @@ func (e *Engine) onPeerAction(p *room.Peer, m *room.Msg) {
 		return
 	}
 	e.note(in, "remote:"+orEmpty(m.Who, p.Name))
+	if !e.syncing() {
+		e.countMuted()
+		e.log.Debug("muted (%s): peer order %s was noted and not applied", e.muteWhy(), intentWhy(in))
+		return
+	}
 	e.suppressFor(in)
 	ok := e.apply(in)
 	e.mu.Lock()
@@ -266,12 +292,13 @@ func (e *Engine) viaMenu(in *Intent) bool {
 		}
 		return true
 	}
+	e.mu.Lock()
 	for _, q := range e.pending {
 		if q.label == label {
+			e.mu.Unlock()
 			return false
 		}
 	}
-	e.mu.Lock()
 	e.pending = append(e.pending, pendingPick{label: label, intent: in, expires: time.Now().Add(12 * time.Second).UnixMilli()})
 	e.mu.Unlock()
 	e.log.Info("waiting for a menu page with %q (peer wanted %s)", label, intentWhy(in))
@@ -417,6 +444,11 @@ func (e *Engine) compare(origin string, d *room.Msg, isPeer bool) {
 }
 
 func (e *Engine) reconcile(key string, a, b Phase, wantStart bool, who string) {
+	if !e.syncing() {
+		e.countMuted()
+		e.log.Warn("DRIFT %s: here=%s there=%s (%s) - %s, so nothing was ordered", key, a.State, b.State, who, e.muteWhy())
+		return
+	}
 	why := "peer stopped it"
 	if wantStart {
 		why = "peer started it"
@@ -522,9 +554,21 @@ func (e *Engine) note(in *Intent, src string) {
 }
 
 func (e *Engine) sweep() {
+	if !e.syncing() {
+		e.mu.Lock()
+		if len(e.pending) > 0 {
+			e.counters.Muted += len(e.pending)
+			e.pending = nil
+		}
+		e.mu.Unlock()
+		return
+	}
 	now := time.Now().UnixMilli()
-	keep := e.pending[:0]
-	for _, q := range e.pending {
+	e.mu.Lock()
+	list := append([]pendingPick{}, e.pending...)
+	e.mu.Unlock()
+	keep := list[:0]
+	for _, q := range list {
 		if q.expires < now {
 			e.log.Warn("peer pick %q never appeared locally - skipped", q.label)
 			continue
@@ -583,6 +627,9 @@ type Status struct {
 		Stats room.Stats      `json:"stats"`
 	} `json:"link"`
 	Sync struct {
+		GsxSync   bool     `json:"gsxSync"`
+		Paused    bool     `json:"paused"`
+		Mode      string   `json:"mode"`
 		Counters  Counters `json:"counters"`
 		Reconcile string   `json:"reconcile"`
 		Pending   []string `json:"pendingMenu"`
@@ -635,6 +682,15 @@ func (e *Engine) Status() *Status {
 	st.Link.Room = e.link.RoomName()
 	st.Link.Peers = e.link.Peers()
 	st.Link.Stats = e.link.Stats()
+	st.Sync.GsxSync, st.Sync.Paused = e.SyncFlags()
+	switch {
+	case st.Sync.Paused:
+		st.Sync.Mode = "paused"
+	case !st.Sync.GsxSync:
+		st.Sync.Mode = "room only"
+	default:
+		st.Sync.Mode = "gsx + room"
+	}
 	e.mu.Lock()
 	st.Sync.Counters = e.counters
 	st.Sync.Reconcile = itoa(e.cfg.ReconcileSeconds) + "s"
@@ -750,6 +806,50 @@ func (e *Engine) SetReconcile(s int) {
 	e.log.Debug("reconcile every %ds", s)
 }
 func (e *Engine) SetAutoStop(v bool) { e.mu.Lock(); e.cfg.AutoStop = v; e.mu.Unlock() }
+
+func (e *Engine) SetGsxSync(v bool) bool {
+	old := e.gsxOn.Swap(v)
+	if v != old {
+		if v {
+			e.log.Info("gsx sync back on - the room shares ground services again")
+		} else {
+			e.log.Warn("gsx sync off - nothing is ordered in either cockpit's GSX; the room stays connected")
+		}
+		e.digestSoon()
+	}
+	return v
+}
+
+func (e *Engine) SetPaused(v bool) bool {
+	old := e.paused.Swap(v)
+	if v != old {
+		if v {
+			e.log.Warn("paused - this cockpit does nothing on its own now, and remote orders are refused")
+		} else {
+			e.log.Info("resumed - the room is live again")
+			e.askAndPublish()
+		}
+		e.digestSoon()
+	}
+	return v
+}
+
+func (e *Engine) SyncFlags() (gsxSync, paused bool) {
+	return e.gsxOn.Load(), e.paused.Load()
+}
+
+func (e *Engine) muteWhy() string {
+	if e.paused.Load() {
+		return "paused"
+	}
+	return "gsx sync is off"
+}
+
+func (e *Engine) countMuted() {
+	e.mu.Lock()
+	e.counters.Muted++
+	e.mu.Unlock()
+}
 
 func (e *Engine) Phases() map[string]Phase     { return phasesOf(e.gsx) }
 func (e *Engine) StateHash() string            { return stateHashOf(e.gsx) }
