@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
+# smoke.sh - two cockpits, two fake Couatls, one room, and the sim bridge with a stand-in sim.
+# Every step that matters is asserted: the suite prints FAIL and exits 1 rather than drifting by.
 set -u
 cd "$(dirname "$0")"
 mkdir -p .smoke
+export PATH="/e/go/bin:$PATH" GOTOOLCHAIN=local
 cp dist/tandem.exe dist/b.exe   # a second copy: Windows will not let two instances share one file handle for upgrades
+go build -o .smoke/wsprobe.exe ./tools/wsprobe || { echo "FAIL wsprobe would not build"; exit 1; }
 taskkill //F //IM tandem.exe //IM b.exe >/dev/null 2>&1
 sleep 0.5
 
@@ -15,39 +19,81 @@ GSXTEST_LOCAL=1 ./dist/b.exe --ui 18896 --gsx ws://127.0.0.1:18745 --listen 1877
 sleep 3
 
 pj() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
+fails=0
+need() { # need <what it is> <expected> <got>
+  if [ "$2" != "$3" ]; then echo "    FAIL $1: wanted [$2] got [$3]"; fails=$((fails+1)); else echo "    ok   $1"; fi
+}
+get() { curl -s --max-time 5 "http://127.0.0.1:$1/api/status"; }
+post() { curl -s --max-time 8 -X POST "http://127.0.0.1:$1/api/$2" -d "$3"; }
+
+echo "=== shared cockpit on, both sides (off is the new default)"
+for p in 18795 18896; do post $p config '{"shared":true}' >/dev/null; done
+sleep 3
+for p in 18795 18896; do
+  need "ui $p says shared is on" "True" "$(get $p | pj 'str(d["app"]["shared"])')"
+done
 
 echo "=== A opens a room"
-curl -s --max-time 5 -X POST http://127.0.0.1:18795/api/connect -d '{"room":"SMOKE1"}' | pj "'room '+str(d['room'])"
-INV=$(curl -s --max-time 5 http://127.0.0.1:18795/api/invite | python3 -c "import json,sys;print(json.load(sys.stdin)['code'])")
+post 18795 connect '{"room":"SMOKE1"}' | pj "'room '+str(d.get('room'))" | sed 's/^/    /'
+INV=$(curl -s --max-time 5 http://127.0.0.1:18795/api/invite | python3 -c "import json,sys;print(json.load(sys.stdin).get('code',''))")
+need "an invite code came out" "yes" "$([ -n "$INV" ] && echo yes || echo no)"
 echo "    invite: ${INV:0:56}..."
 
 echo "=== B pastes the invite"
-curl -s --max-time 5 -X POST http://127.0.0.1:18896/api/paste -d "{\"code\":\"$INV\"}" | pj "'join ok, cands='+str(len(d.get('cands',[])))"
+post 18896 paste "{\"code\":\"$INV\"}" | pj "'join ok, cands='+str(len(d.get('cands',[])))" | sed 's/^/    /'
 sleep 4
 
 echo "=== the room"
 for p in 18795 18896; do
   printf "    ui %-6s " "$p"
-  curl -s --max-time 5 "http://127.0.0.1:$p/api/status" | pj "'peers='+str([x['name'] for x in d['status']['link']['peers']])+' gsx='+str(d['status']['gsx']['connected'])+' here='+d['app']['room']"
+  get $p | pj "'peers='+str([x['name'] for x in d['status']['link']['peers']])+' gsx='+str(d['status']['gsx']['connected'])+' here='+d['app']['room']"
 done
+need "A sees There" "['There']" "$(get 18795 | pj 'sorted(x["name"] for x in d["status"]["link"]["peers"])')"
+need "B sees Here" "['Here']" "$(get 18896 | pj 'sorted(x["name"] for x in d["status"]["link"]["peers"])')"
 
 echo "=== A orders Boarding (through A's own Couatl)"
-curl -s --max-time 5 -X POST http://127.0.0.1:18795/api/trigger -d '{"name":"Boarding"}'
-echo
+post 18795 trigger '{"name":"Boarding"}' >/dev/null
+sleep 4
+a_state=$(get 18795 | pj "str(d['status']['gsx']['phases'].get('Boarding',{}).get('state','NONE'))")
+b_state=$(get 18896 | pj "str(d['status']['gsx']['phases'].get('Boarding',{}).get('state','NONE'))")
+printf "    A Boarding=%s   B Boarding=%s\n" "$a_state" "$b_state"
+need "the same service reached the other cockpit" "$a_state" "$b_state"
+need "B applied something it did not order" "yes" "$(get 18896 | pj 'str(int(d["status"]["sync"]["counters"]["appliedRemote"])>0 and "yes" or "no")')"
+
+echo "=== turning shared off closes the door"
+post 18896 config '{"shared":false}' >/dev/null
+sleep 2
+need "B refuses an invite while shared is off" "True" "$(curl -s --max-time 5 http://127.0.0.1:18896/api/invite | pj 'str("error" in d)')"
+post 18896 config '{"shared":true}' >/dev/null
 sleep 3
-for p in 18795 18896; do
-  printf "    ui %-6s Boarding=" "$p"
-  curl -s --max-time 5 "http://127.0.0.1:$p/api/status" | pj "str(d['status']['gsx']['phases'].get('Boarding',{}).get('state','NONE'))+' applied='+str(d['status']['sync']['counters']['appliedRemote'])"
-done
+need "B is back in the room" "['Here']" "$(get 18896 | pj 'sorted(x["name"] for x in d["status"]["link"]["peers"])')"
+
+echo "=== the sim bridge, with a stand-in sim"
+post 18795 sim '{"enabled":true,"watch":["L:AP_MASTER","L:KAP700_STANDBY_POWER"]}' >/dev/null
+sleep 1
+URL=$(get 18795 | pj 'd["app"]["sim"].get("url","")')
+echo "    listening on $URL"
+( .smoke/wsprobe.exe -listen -url "$URL" -title "Fenix Airbus A321neo" -vars "L:AP_MASTER=1,L:KAP700_STANDBY_POWER=2" > .smoke/probe.log 2>&1 & )
+sleep 2
+sleep 2
+need "the sim bridge counts a sim talking to it" "True" "$(get 18795 | pj 'str(d["app"]["sim"]["connected"])')"
+need "the sim said what it is flying" "Fenix Airbus A321neo" "$(get 18795 | pj 'd["app"]["sim"]["title"]')"
+need "the switch the sim reported arrived" "1" "$(get 18795 | pj 'str(d["app"]["sim"]["vars"].get("L:AP_MASTER"))')"
+post 18795 sim '{"write":{"L:AP_MASTER":0}}' >/dev/null
+sleep 1
+need "Tandem asked the sim to put a switch back" "yes" "$(grep -c 'L:AP_MASTER' .smoke/probe.log | awk '{print ($1>1)?"yes":"no"}')"
+taskkill //F //IM wsprobe.exe >/dev/null 2>&1
 
 echo "=== a note across the room"
-curl -s --max-time 5 -X POST http://127.0.0.1:18795/api/note -d '{"text":"chocks in, over"}' >/dev/null
+post 18795 note '{"text":"chocks in, over"}' >/dev/null
 sleep 1
 grep -h "chocks in" .smoke/b.log | sed 's/\x1b\[[0-9;]*m//g' | sed 's/^/    /'
+need "the note got through" "1" "$(grep -hc 'chocks in' .smoke/b.log | tail -1 | tr -d ' ')"
 
 echo "=== quit"
-curl -s --max-time 5 -X POST http://127.0.0.1:18896/api/quit -d '{}' >/dev/null
-curl -s --max-time 5 -X POST http://127.0.0.1:18795/api/quit -d '{}' >/dev/null
+post 18896 quit '{}' >/dev/null
+post 18795 quit '{}' >/dev/null
 sleep 1
 taskkill //F //IM tandem.exe //IM b.exe >/dev/null 2>&1
-echo done
+if [ "$fails" -gt 0 ]; then echo "SMOKE: $fails thing(s) did not hold"; exit 1; fi
+echo "done - every step held"

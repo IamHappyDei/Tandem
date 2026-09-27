@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"time"
 
 	"tandem/internal/conf"
@@ -28,6 +29,7 @@ func (a *App) applyShared(v bool) {
 		}
 		a.link.SetRoom(a.cfg.Net.Room, a.cfg.Net.Pass)
 		go a.discoverLoop()
+		a.rejoin()
 		a.ensureRendezvous()
 		for _, u := range a.cfg.Net.RelayURLs {
 			go func(u string) {
@@ -39,5 +41,25 @@ func (a *App) applyShared(v bool) {
 				}
 			}(u)
 		}
+	}()
+}
+
+func (a *App) rejoin() {
+	a.mu.Lock()
+	prev := a.lastDial
+	a.mu.Unlock()
+	if prev == "" {
+		return
+	}
+	go func() {
+		time.Sleep(700 * time.Millisecond)
+		for _, t := range strings.Fields(prev) {
+			if _, err := a.link.Dial(t); err != nil {
+				a.log.Debug("back to %s did not work (%s)", t, err)
+				continue
+			}
+			a.log.Info("back to %s - shared cockpit was turned on again", t)
+		}
+		a.link.Punch(a.link.Candidates())
 	}()
 }

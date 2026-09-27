@@ -17,7 +17,9 @@ def hook():
 def main():
     title = sys.argv[1] if len(sys.argv) > 1 else 'tandem'
     body = sys.argv[2] if len(sys.argv) > 2 else ' '.join(sys.argv[1:])
-    payload = {"username": "Tandem (building)", "embeds": [{
+    if os.environ.get("TANDEM_MENTION", "").lower() == "everyone":
+        payload = {"username": "Tandem (building)", "content": "@everyone",
+                   "allowed_mentions": {"parse": ["everyone"]}, "embeds": [{
         "title": title, "description": body[:3800], "color": 344700,
         "footer": {"text": "about to implement"}}]}
     req = urllib.request.Request(hook(), data=json.dumps(payload).encode(),
