@@ -1,7 +1,0 @@
-publish.py treated "no release yet" as a failure
-
-A brand-new tag has no release, and the script asked GitHub for one to decide what to do: the
-404 that means "not yet" was routed to the same die() as a 403 or a 500, so the first run of
-release.sh for any new version died on the very check that tells it to create the release. 404
-now raises NotFound, which is what main() was already catching - it just could never have seen
-it raised.

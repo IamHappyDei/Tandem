@@ -28,3 +28,4 @@ bridge/dotnet/bin/
 *_p.c
 bridge/dotnet/SimConnect.dll
 bridge/dotnet/Microsoft.FlightSimulator.SimConnect.dll
+.cm
