@@ -143,7 +143,21 @@ func (a *App) discoverLoop() {
 func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(webFS, "web")
-	mux.Handle("/", http.FileServer(http.FS(sub)))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if name == "" || name == "index.html" {
+			b, err := fs.ReadFile(sub, "index.html")
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = w.Write([]byte(strings.Replace(string(b), "<!--version-->", Version, 1)))
+			return
+		}
+		http.FileServer(http.FS(sub)).ServeHTTP(w, r)
+	})
 	mux.HandleFunc("/api/status", a.json(a.status))
 	mux.HandleFunc("/api/log", a.json(a.logTail))
 	mux.HandleFunc("/api/events", a.events)
@@ -413,7 +427,7 @@ func (a *App) StatusSnapshot() any {
 }
 
 func (a *App) connect(r *http.Request, body map[string]any) (any, error) {
-	if err := a.shared(); err != nil {
+	if err := a.wantShared(); err != nil {
 		return nil, err
 	}
 	roomStr := strings.ToUpper(strings.TrimSpace(asString(body["room"])))
@@ -491,7 +505,7 @@ func (a *App) disconnect(r *http.Request, body map[string]any) (any, error) {
 }
 
 func (a *App) invite(w http.ResponseWriter, r *http.Request) (any, error) {
-	if err := a.shared(); err != nil {
+	if err := a.wantShared(); err != nil {
 		return nil, err
 	}
 	if a.cfg.Net.Room == "" {
@@ -555,7 +569,7 @@ func (a *App) invite(w http.ResponseWriter, r *http.Request) (any, error) {
 }
 
 func (a *App) paste(r *http.Request, body map[string]any) (any, error) {
-	if err := a.shared(); err != nil {
+	if err := a.wantShared(); err != nil {
 		return nil, err
 	}
 	in := strings.TrimSpace(asString(body["code"]))

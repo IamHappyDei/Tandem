@@ -183,7 +183,7 @@
     </div>
   </div>
 
-  <div class="card" id="acCard">
+  <div class="card" id="acCard" hidden>
     <div class="h2 rowh"><span>this aircraft</span><span class="q"><button class="ghost sm" id="acDetect">Detect</button><button class="ghost sm" id="acRescan">Rescan folder</button></span></div>
     <div class="acline"><select id="acPick"><option value="">not chosen</option></select></div>
     <label class="opt" id="acShareRow" style="padding-left:0"><input type="checkbox" id="acShare"><span><span class="t">Share ground services for this one</span><span class="d" id="acShareWhy">Profiles are per aircraft: leave it on and a chock or a GPU ordered in either cockpit is ordered here too.</span></span></label>
@@ -191,7 +191,7 @@
     <div class="svcs" id="acSvcs" hidden></div>
   </div>
 
-  <div class="card" id="simCard">
+  <div class="card" id="simCard" hidden>
     <div class="h2 rowh"><span>the aircraft's own switches</span><span class="q"><button class="ghost sm" id="simBtn">Sim bridge</button></span></div>
     <div id="simNote"></div>
     <div class="grid">
@@ -289,7 +289,7 @@
   </div>
 
   <footer>
-    <span>v<b id="fVer">0.2</b></span>
+    <span>v<b id="fVer"><!--version--></b></span>
     <span>room <b id="fRoom">—</b></span>
     <span>log <b id="fLog">tandem.log</b></span>
     <span class="dim">closing the window keeps syncing — tray icon has Show / Hide / Quit</span>

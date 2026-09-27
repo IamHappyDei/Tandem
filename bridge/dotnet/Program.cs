@@ -116,6 +116,11 @@ namespace TandemSim
             foreach (var candidate in PlacesToLook())
             {
                 if (!File.Exists(candidate)) { continue; }
+                if (SomebodyElsesAddon(candidate))
+                {
+                    Log("ignoring " + candidate + " - that belongs to another add-on, and Tandem does not borrow from those");
+                    continue;
+                }
                 SetDllDirectory(Path.GetDirectoryName(candidate));
                 Log("SimConnect.dll is at " + candidate);
                 return true;
@@ -163,6 +168,16 @@ namespace TandemSim
                     yield return Path.Combine(drive.RootDirectory.FullName, "Program Files", name, "SimConnect.dll");
                 }
             }
+        }
+
+        static bool SomebodyElsesAddon(string path)
+        {
+            var low = path.ToLowerInvariant();
+            foreach (var no in new[] { "\community\\", "fscopilot", "\addons\\" })
+            {
+                if (low.Contains(no)) { return true; }
+            }
+            return false;
         }
 
         static void Log(string s)

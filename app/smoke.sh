@@ -63,8 +63,11 @@ need "B applied something it did not order" "yes" "$(get 18896 | pj 'str(int(d["
 echo "=== turning shared off closes the door"
 post 18896 config '{"shared":false}' >/dev/null
 sleep 2
-need "B refuses an invite while shared is off" "True" "$(curl -s --max-time 5 http://127.0.0.1:18896/api/invite | pj 'str("error" in d)')"
-post 18896 config '{"shared":true}' >/dev/null
+need "B closed its room port while off" "0" "$(netstat -ano | grep LISTENING | grep -c ':18770 ' | tr -d ' ')"
+curl -s --max-time 5 http://127.0.0.1:18896/api/invite >/dev/null
+need "asking for a code switched shared cockpit back on" "True" "$(get 18896 | pj 'str(d["app"]["shared"])')"
+sleep 5
+need "and the log says so" "1" "$(grep -hc 'you asked for the room' .smoke/b.log | tail -1 | tr -d ' ')"
 sleep 3
 need "B is back in the room" "['Here']" "$(get 18896 | pj 'sorted(x["name"] for x in d["status"]["link"]["peers"])')"
 

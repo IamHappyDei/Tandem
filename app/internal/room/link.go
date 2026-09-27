@@ -144,6 +144,9 @@ func (l *Link) Stats() Stats {
 }
 
 func (l *Link) Start() error {
+	l.mu.Lock()
+	l.stopped = false
+	l.mu.Unlock()
 	if err := l.startUDP(); err != nil {
 		l.log.Warn("UDP unavailable (%s) - internet play will need a relay or a direct address", err)
 	}
@@ -154,6 +157,10 @@ func (l *Link) Start() error {
 
 func (l *Link) Stop() {
 	l.mu.Lock()
+	if l.stopped {
+		l.mu.Unlock()
+		return
+	}
 	l.stopped = true
 	trs := make([]*transport, 0, len(l.trs))
 	for _, t := range l.trs {

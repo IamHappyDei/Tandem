@@ -63,3 +63,12 @@ func (a *App) rejoin() {
 		a.link.Punch(a.link.Candidates())
 	}()
 }
+
+func (a *App) wantShared() error {
+	if a.cfg.SharedCockpit() {
+		return nil
+	}
+	a.log.Info("you asked for the room, so shared cockpit is switched on - the ports open and this machine joins")
+	a.applyShared(true)
+	return nil
+}
