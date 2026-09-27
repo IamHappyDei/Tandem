@@ -138,6 +138,7 @@ func (g *gui) info(w http.ResponseWriter, r *http.Request) {
 		"singleFile":  hasPayload(),
 		"whatItSays":  payloadState(),
 		"community":   communityGuess(),
+		"communityIs": communityIs(communityGuess()),
 		"bridgeThere": bridgeInstalled(communityGuess()),
 	})
 }
@@ -351,6 +352,14 @@ func (g *gui) watchWindow(w *ui.Window) {
 }
 
 func communityGuess() string { return aircraft.Open("").CommunityDir() }
+
+func communityIs(dir string) int {
+	ok, n := aircraft.LooksLikeCommunity(dir)
+	if !ok {
+		return -1
+	}
+	return n
+}
 
 func bridgeInstalled(dir string) bool { return dir != "" && bridge.InstalledIn(dir) }
 

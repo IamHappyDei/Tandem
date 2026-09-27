@@ -176,11 +176,22 @@ func LogPath() string { return filepath.Join(Dir(), "tandem.log") }
 
 func Load() *Config {
 	c := Defaults()
-	b, err := os.ReadFile(ConfigPath())
-	if err != nil {
+	merged := map[string]any{}
+	for _, f := range []string{filepath.Join(Dir(), "config.json"), ConfigPath()} {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		var m map[string]any
+		if json.Unmarshal(b, &m) != nil {
+			continue
+		}
+		overlay(merged, m)
+	}
+	if len(merged) == 0 {
 		return c
 	}
-
+	b, _ := json.Marshal(merged)
 	_ = json.Unmarshal(b, c)
 	if c.Net.Name == "" {
 		c.Net.Name = Hostname()
@@ -193,7 +204,29 @@ func Load() *Config {
 
 func (c *Config) Save() error {
 	b, _ := json.MarshalIndent(c, "", "  ")
-	return os.WriteFile(ConfigPath(), b, 0o644)
+	where := ConfigPath()
+	if err := os.WriteFile(where, b, 0o644); err != nil {
+		return err
+	}
+	base := filepath.Join(Dir(), "config.json")
+	if base != where {
+		if err := os.WriteFile(base, b, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func overlay(dst, src map[string]any) {
+	for k, v := range src {
+		if sub, ok := v.(map[string]any); ok {
+			if have, ok := dst[k].(map[string]any); ok {
+				overlay(have, sub)
+				continue
+			}
+		}
+		dst[k] = v
+	}
 }
 
 func Hostname() string {

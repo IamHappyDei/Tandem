@@ -183,6 +183,14 @@ sync switch and Pause. "This aircraft" and "the aircraft's own switches" are hid
 their API stays reachable, and `aircraft.json` / `config.json` / the installer still control
 them, so nothing was removed to make the window look plain.
 
+## Where settings live
+
+`%APPDATA%\Tandem\config.json` is your settings. Run two cockpits on one PC and each also gets
+its own `config-<name><port>.json`, which wins over the shared one for that instance. Saving
+writes both, so renaming your cockpit, changing the community folder or the switch lists comes
+back on the next start *whatever you call it by then* — that was not true before 1.2.5, and a
+rename could make settings look lost.
+
 ## The sim bridge (`tandem/internal/bridge`)
 
 Tandem listens on `ws://127.0.0.1:8796/` when *Settings → Sim bridge* is on, and speaks the

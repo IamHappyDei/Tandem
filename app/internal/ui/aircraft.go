@@ -42,7 +42,12 @@ func (a *App) aircraftBrief() map[string]any {
 			}
 		}
 	}
-	return map[string]any{"active": key, "label": label, "why": why, "community": a.ac.CommunityDir()}
+	ok, n := aircraft.LooksLikeCommunity(a.ac.CommunityDir())
+	if !ok {
+		n = -1
+	}
+	return map[string]any{"active": key, "label": label, "why": why, "community": a.ac.CommunityDir(),
+		"communityIs": n, "auto": a.ac.Auto(), "pinned": a.ac.IsPinned()}
 }
 
 func (a *App) hAircraft(r *http.Request, body map[string]any) (any, error) {

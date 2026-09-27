@@ -4,6 +4,8 @@
 set -u
 cd "$(dirname "$0")"
 mkdir -p .smoke
+rm -rf .smoke/appdata && mkdir -p .smoke/appdata/Tandem
+export APPDATA="$(cd .smoke/appdata && pwd -W)"
 export PATH="/e/go/bin:$PATH" GOTOOLCHAIN=local
 cp dist/tandem.exe dist/b.exe   # a second copy: Windows will not let two instances share one file handle for upgrades
 go build -o .smoke/wsprobe.exe ./tools/wsprobe || { echo "FAIL wsprobe would not build"; exit 1; }
@@ -92,6 +94,34 @@ post 18795 note '{"text":"chocks in, over"}' >/dev/null
 sleep 1
 grep -h "chocks in" .smoke/b.log | sed 's/\x1b\[[0-9;]*m//g' | sed 's/^/    /'
 need "the note got through" "1" "$(grep -hc 'chocks in' .smoke/b.log | tail -1 | tr -d ' ')"
+
+echo "=== settings are written down, not just remembered"
+post 18795 config '{"shared":true}' >/dev/null
+post 18795 config '{"name":"Here Renamed"}' >/dev/null
+post 18795 aircraft '{"community":"D:\\MSFS\\Community","autoDetect":false}' >/dev/null
+post 18795 sim '{"watch":["L:TEST_ONE","L:TEST_TWO, Bool"]}' >/dev/null
+sleep 1
+files=$(echo "$APPDATA")
+need "the name landed in the config file" "yes" "$(python3 -c "
+import json,glob,os,sys
+hits=[f for f in glob.glob(os.environ['APPDATA']+r'/Tandem/*.json') if 'config' in os.path.basename(f)]
+print('yes' if any(json.load(open(f)).get('net',{}).get('name')=='Here Renamed' for f in hits) else 'no')")"
+need "the community folder landed in the profile file" "yes" "$(python3 -c "
+import json,glob,os
+hits=glob.glob(os.environ['APPDATA']+r'/Tandem/aircraft*.json')
+print('yes' if hits and any(json.load(open(f)).get('community','').endswith('Community') for f in hits) else 'no')")"
+need "the watch list landed too" "yes" "$(python3 -c "
+import json,glob,os
+hits=[f for f in glob.glob(os.environ['APPDATA']+r'/Tandem/*.json') if 'config' in os.path.basename(f)]
+print('yes' if any(len(json.load(open(f)).get('sim',{}).get('watch',[]))==2 for f in hits) else 'no')")"
+post 18795 quit '{}' >/dev/null
+sleep 2
+GSXTEST_LOCAL=1 ./dist/tandem.exe fake --port 18744 > .smoke/fa2.log 2>&1 &
+GSXTEST_LOCAL=1 ./dist/tandem.exe --ui 18795 --gsx ws://127.0.0.1:18744 --nogui > .smoke/a2.log 2>&1 &
+sleep 5
+need "and the next start reads it back" "Here Renamed" "$(get 18795 | pj 'd["app"]["name"]')"
+need "the auto-detect switch stayed where you left it" "False" "$(get 18795 | pj 'str(d["app"]["aircraft"].get("auto", True))')"
+need "the watch list came back" "2" "$(get 18795 | pj 'len(d["app"]["sim"]["wanted"])')"
 
 echo "=== quit"
 post 18896 quit '{}' >/dev/null

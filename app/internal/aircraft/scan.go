@@ -281,3 +281,31 @@ func isLivery(p Package) bool {
 	}
 	return false
 }
+
+func LooksLikeCommunity(dir string) (bool, int) {
+	if dir == "" {
+		return false, 0
+	}
+	fi, err := os.Stat(dir)
+	if err != nil || !fi.IsDir() {
+		return false, 0
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, 0
+	}
+	low := strings.ToLower(dir)
+	if strings.Contains(low, "\\windows\\") || strings.Contains(low, "\\program files") {
+		return false, 0
+	}
+	pkgs := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, e.Name(), "manifest.json")); err == nil {
+			pkgs++
+		}
+	}
+	return pkgs >= 3, pkgs
+}

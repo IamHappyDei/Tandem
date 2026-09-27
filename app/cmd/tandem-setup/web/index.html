@@ -39,6 +39,8 @@
   .fld input{width:100%;font:12.5px/1.5 var(--mono);color:var(--tx);background:#0b1017;
     border:1px solid var(--line);border-radius:9px;padding:9px 11px;box-sizing:border-box}
   .fld input:focus{outline:none;border-color:#2a7293;background:#0d131b}
+  .fld input.warn{border-color:#5d4a20;background:#12100a}
+  .fld input.warn:focus{border-color:#ffb454}
   .btns{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
   .ghost{background:#161e29;color:var(--mut)}
   .ghost:hover{background:#1a222e;color:var(--tx)}
@@ -118,8 +120,11 @@ function post(p,b){
 fetch('/api/info').then(r=>r.json()).then(i=>{
   $('#pAll').textContent=i.all; $('#pMe').textContent=i.mine; $('#ver').textContent=i.version;
   $('#noAdmin').hidden = !!i.elevated;
-  if(i.community){ $('#comm').value=i.community; $('#commHint').textContent = i.bridgeThere ? 'the bridge page is already there' : 'found it'; }
-  else { $('#commHint').textContent = 'nothing found - type it in, or name it in Tandem later'; }
+  if(i.community){
+    $('#comm').value=i.community;
+    if(i.communityIs>0){ $('#commHint').innerHTML = 'read from this PC, and checked: <b>'+i.communityIs+'</b> add-on packages in there. Still worth a look with Browse if that is not your folder.'; }
+    else { $('#comm').classList.add('warn'); $('#commHint').innerHTML = 'this is a <b>guess</b> from this PC - nothing under it was recognised. Press Browse and pick it, or type the folder.'; }
+  } else { $('#comm').classList.add('warn'); $('#commHint').textContent='nothing on this PC to go on - press Browse and pick the folder.'; }
   if (i.singleFile) $('#note').textContent = 'Everything needed is inside this one file.';
   if(i.installed){
     $('#h').textContent='Tandem is already on this PC';
@@ -172,18 +177,22 @@ $('#uninstall').onclick=()=>{
 };
 $('#launch').onclick=()=>{ post('/api/launch').catch(()=>{}); setTimeout(()=>window.close(),300); };
 $('#close').onclick=()=>{ post('/api/quit').catch(()=>{}); setTimeout(()=>window.close(),200); };
+function pickedFolder(t){ $('#comm').value=t; $('#comm').classList.remove('warn'); $('#commHint').innerHTML='you picked that one - <b>'+t+'</b>'; }
+$('#comm').addEventListener('input', ()=>{ $('#comm').classList.add('warn'); $('#commHint').textContent='typed, not checked - press Look for it to compare, or Browse to be sure'; });
 $('#commBrowse').onclick=async()=>{
   $('#commBrowse').disabled=true;
   $('#commHint').textContent='choosing - the folder window is opening';
-  try { const d=await post('/api/browse',{}); $('#comm').value=d.path; $('#commHint').textContent='you picked that one'; }
+  try { const d=await post('/api/browse',{}); pickedFolder(d.path); }
   catch(e){ $('#commHint').textContent=(e.message||'nothing was picked')+' - you can type it in above'; }
   $('#commBrowse').disabled=false;
 };
 $('#commFind').onclick=async()=>{
   $('#commHint').textContent='looking...';
   const d=await (await fetch('/api/info?fresh='+Date.now(),{cache:'no-store'})).json();
-  if(d.community){ $('#comm').value=d.community; $('#commHint').textContent='found it'; }
-  else $('#commHint').textContent='nothing found on this PC - pick the folder yourself above';
+  if(d.community){ $('#comm').value=d.community;
+    if(d.communityIs>0){ $('#comm').classList.remove('warn'); $('#commHint').innerHTML='looked on this PC and checked it: <b>'+d.communityIs+'</b> add-on packages'; }
+    else { $('#comm').classList.add('warn'); $('#commHint').innerHTML='a folder was guessed, but nothing under it was recognised - Browse if it is not right'; } }
+  else $('#commHint').textContent='nothing on this PC to go on - pick it with Browse, or type it';
 };
-$('#comm').addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); $('#go').click(); } });
+$('#comm').addEventListener('keydown', ev=>{ ev.stopPropagation(); if(ev.key==='Enter'){ ev.preventDefault(); $('#go').click(); } });
 </script></body></html>

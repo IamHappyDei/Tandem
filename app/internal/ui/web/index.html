@@ -233,6 +233,7 @@
         <label>relay</label><input id="sRelay" placeholder="ws://your-vps:8791 (last resort)">
         <label>community</label><input id="sComm" placeholder="the folder your aircraft live in" spellcheck="false">
           <span class="q"><button class="ghost sm" id="sCommBrowse">Browse…</button></span>
+        <span class="d" id="sCommNote">the folder Tandem reads add-on aircraft from</span>
       </div>
       <div class="opts">
         <label class="opt"><input type="checkbox" id="sUpd">
@@ -344,6 +345,12 @@ function paintAircraft(ac){
     box.querySelectorAll('input').forEach(el => el.onchange = saveServices);
   }
   if (document.activeElement !== $('#sComm')) $('#sComm').value = AC.community || '';
+  if (document.activeElement !== $('#sComm')) {
+    const real = (AC.communityIs||0) > 0;
+    $('#sComm').classList.toggle('warn', !real);
+    $('#sCommNote').innerHTML = real ? 'checked: <b>'+AC.communityIs+'</b> add-on packages in there — press Browse if that is not your folder'
+      : (AC.community ? 'this is a guess from this PC, and nothing under it was recognised — <b>Browse</b> and pick it' : 'no folder yet — <b>Browse</b> and pick the one MSFS reads');
+  }
   $('#acHint').textContent = (AC.community ? AC.community + ' · ' + AC.found + ' aircraft, ' + AC.other + ' other packages' : 'no community folder found — set it in Settings')
     + (ac.why ? ' · ' + ac.label + ': ' + ac.why : '');
   $('#acShareWhy').textContent = here && prof && prof.gsxSync === false
@@ -593,6 +600,7 @@ async function aircraftPost(body, msg){
 $('#acPick').onchange = () => aircraftPost({active: $('#acPick').value}, $('#acPick').value ? 'profile in use' : 'no aircraft profile');
 $('#acDetect').onclick = () => aircraftPost({detect: true}, 'looked at what GSX reports');
 $('#acRescan').onclick = () => aircraftPost({community: (AC && AC.community) || 'rescan'}, 'folder walked again');
+$('#sComm').oninput = () => { $('#sComm').classList.add('warn'); $('#sCommNote').textContent = 'typed, not checked — press Browse to be sure'; };
 $('#sComm').onchange = () => aircraftPost({community: $('#sComm').value.trim()}, 'folder changed');
 
 $('#simBtn').onclick = () => simPost({enabled: !(S && S.app && S.app.sim && S.app.sim.enabled)}, 'sim bridge on - the sim can talk to Tandem');
@@ -662,7 +670,7 @@ ensureString();
 $('#sCommBrowse').onclick = async () => {
   $('#sCommBrowse').disabled = true;
   flash($('#acHint'), 'choosing - the folder window is opening', 'ok');
-  try { const d = await api('/api/browse', {}); $('#sComm').value = d.path; aircraftPost({community: d.path}, 'you picked that folder'); }
+  try { const d = await api('/api/browse', {}); $('#sComm').value = d.path; aircraftPost({community: d.path}, 'you picked that folder'); flash($('#sCommNote'), '', 'ok'); }
   catch(e){ flash($('#acHint'), (e.message || 'nothing was picked') + ' - you can type it in the box above', 'bad'); }
   $('#sCommBrowse').disabled = false;
 };

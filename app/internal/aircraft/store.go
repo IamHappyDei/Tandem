@@ -285,6 +285,13 @@ func (s *Store) Summary() map[string]any {
 	sort.Strings(keys)
 	return map[string]any{
 		"community": s.CommunityDir(),
+		"communityIs": func() int {
+			ok, n := LooksLikeCommunity(s.CommunityDir())
+			if !ok {
+				return -1
+			}
+			return n
+		}(),
 		"found":     len(air),
 		"other":     len(other),
 		"aircraft":  rows,
