@@ -178,8 +178,13 @@ means *mirror this one for this aircraft*; unticked, an order for it is noted an
 counted in `sync.counters.filtered`, never dropped in silence. Leave them all ticked and
 every service is mirrored, including ones the sim has not mentioned yet.
 
-**Detect** matches the aircraft name GSX reports against the folder and says where the name
-came from. When nothing matches it says so and you pick from the list; a profile you never
+**Detect** asks two things in order: what GSX reports about the loaded aircraft, and the
+`Sim=` line in the flight files MSFS writes when you start or save a flight (newest file, the
+2024 package before the 2020 one, scenery and tool packages excluded — "GSX World" is a
+package name, not an aeroplane). Whichever answered is named in the window: *found in what GSX
+reports* or *from the last flight file*. It runs at start and every half minute — until you
+pick a type by hand, after which a guess never overwrites you. `aircraft.autoDetect` in
+`aircraft.json` turns the polling off. When nothing matches it says so and you pick from the list; a profile you never
 picked is not applied to a type Tandem only guessed at. Profiles are per aircraft, so a
 profile that turns GSX sharing off for the A321 leaves every other aircraft as it was.
 

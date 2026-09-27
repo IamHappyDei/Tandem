@@ -82,6 +82,13 @@ func (a *App) Start() error {
 		return err
 	}
 	a.engine.Start()
+	go func() {
+		time.Sleep(2 * time.Second)
+		a.autoAircraft()
+		for range time.NewTicker(30 * time.Second).C {
+			a.autoAircraft()
+		}
+	}()
 	a.gsx.Start()
 	if a.cfg.Net.Room == "" {
 		a.cfg.Net.Room = conf.RoomCode()

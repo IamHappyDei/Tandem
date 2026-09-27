@@ -264,3 +264,10 @@ func Detect(pkgs []Package, state map[string]any) (Package, string, bool) {
 	}
 	return Package{}, "", false
 }
+
+func Best(pkgs []Package, state map[string]any) (Package, string, bool) {
+	if p, why, ok := Detect(pkgs, state); ok {
+		return p, why, true
+	}
+	return FromFlightFiles(pkgs)
+}

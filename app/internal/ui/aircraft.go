@@ -63,8 +63,13 @@ func (a *App) hAircraft(r *http.Request, body map[string]any) (any, error) {
 		a.ac.SetCommunity(a.ac.CommunityDir())
 		changed = true
 	}
+	if v, ok := body["autoDetect"].(bool); ok {
+		a.ac.SetAuto(v)
+		a.log.Info("aircraft auto-detect %v", v)
+		changed = true
+	}
 	if _, ok := body["detect"].(bool); ok {
-		if p, why, ok := aircraft.Detect(a.ac.List(), a.gsx.State()); ok {
+		if p, why, ok := aircraft.Best(aircraft.Aircraft(a.ac.List()), a.gsx.State()); ok {
 			a.ac.SetActive(p.Key(), why)
 			a.applyAircraft()
 			a.log.Info("aircraft: %s (%s)", p.Label(), why)
@@ -81,7 +86,7 @@ func (a *App) hAircraft(r *http.Request, body map[string]any) (any, error) {
 		if v == "" {
 			why = ""
 		}
-		a.ac.SetActive(v, why)
+		a.ac.SetActivePinned(v, why, v != "")
 		a.applyAircraft()
 		changed = true
 	}
@@ -111,4 +116,23 @@ func (a *App) hAircraft(r *http.Request, body map[string]any) (any, error) {
 		return nil, err
 	}
 	return a.ac.Summary(), nil
+}
+
+func (a *App) autoAircraft() {
+	if !a.ac.Auto() || a.ac.IsPinned() {
+		return
+	}
+	p, why, ok := aircraft.Best(aircraft.Aircraft(a.ac.List()), a.gsx.State())
+	if !ok {
+		return
+	}
+	if cur, _ := a.ac.ActiveKey(); cur == p.Key() {
+		return
+	}
+	a.ac.SetActive(p.Key(), why)
+	a.applyAircraft()
+	if err := a.ac.Save(); err != nil {
+		a.log.Debug("aircraft: could not be written down: %v", err)
+	}
+	a.log.Info("flying %s (%s)", p.Label(), why)
 }

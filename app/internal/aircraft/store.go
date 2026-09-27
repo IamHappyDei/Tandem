@@ -24,13 +24,15 @@ type Profile struct {
 type Store struct {
 	path string
 
-	mu        sync.Mutex
-	Community string              `json:"community"`
-	Active    string              `json:"active"`
-	Detected  string              `json:"detectedFrom"`
-	Profiles  map[string]*Profile `json:"profiles"`
-	pkgs      []Package
-	cached    time.Time
+	mu         sync.Mutex
+	Community  string              `json:"community"`
+	Active     string              `json:"active"`
+	AutoDetect *bool               `json:"autoDetect,omitempty"`
+	Pinned     bool                `json:"pinned,omitempty"`
+	Detected   string              `json:"detectedFrom"`
+	Profiles   map[string]*Profile `json:"profiles"`
+	pkgs       []Package
+	cached     time.Time
 }
 
 func defaultCommunity() string {
@@ -157,9 +159,31 @@ func (s *Store) Set(key, label string, gsxSync bool, services []string) {
 }
 
 func (s *Store) SetActive(key, why string) {
+	s.SetActivePinned(key, why, false)
+}
+
+func (s *Store) SetActivePinned(key, why string, pinned bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Active, s.Detected = key, why
+	s.Active, s.Detected, s.Pinned = key, why, pinned
+}
+
+func (s *Store) Auto() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.AutoDetect == nil || *s.AutoDetect
+}
+
+func (s *Store) SetAuto(v bool) {
+	s.mu.Lock()
+	s.AutoDetect = &v
+	s.mu.Unlock()
+}
+
+func (s *Store) IsPinned() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Pinned
 }
 
 func (s *Store) ActiveKey() (string, string) {
@@ -238,6 +262,8 @@ func (s *Store) Summary() map[string]any {
 		"packages":  other,
 		"active":    active,
 		"activeWhy": why,
+		"auto":      s.Auto(),
+		"pinned":    s.IsPinned(),
 		"profiles":  len(keys),
 	}
 }
