@@ -54,12 +54,13 @@ type Sync struct {
 }
 
 type Config struct {
-	Version int  `json:"version"`
-	GSX     Gsx  `json:"gsx"`
-	Net     Net  `json:"net"`
-	Sync    Sync `json:"sync"`
-	Sim     Sim  `json:"sim"`
-	Link    Link `json:"link"`
+	Version int   `json:"version"`
+	GSX     Gsx   `json:"gsx"`
+	Net     Net   `json:"net"`
+	Sync    Sync  `json:"sync"`
+	Shared  *bool `json:"sharedCockpit,omitempty"`
+	Sim     Sim   `json:"sim"`
+	Link    Link  `json:"link"`
 	UI      struct {
 		Port          int  `json:"port"`
 		AutoOpen      bool `json:"autoOpen"`
@@ -98,6 +99,9 @@ func Defaults() *Config {
 	c.Net.Room = ""
 	c.Net.Pass = ""
 	c.Net.RelayURLs = []string{}
+	c.Shared = boolPtr(false)
+	c.Sim.Enabled = false
+	c.Sim.Port = 8796
 	c.Sync.GsxSync = true
 	c.Sync.Paused = false
 	c.Sync.Role = "symmetric"
@@ -271,4 +275,11 @@ func (c *Config) PeerToSim() bool {
 		return c.Sim.Enabled
 	}
 	return *c.Sync.PeerToSim
+}
+
+func (c *Config) SharedCockpit() bool {
+	if c.Shared == nil {
+		return true
+	}
+	return *c.Shared
 }

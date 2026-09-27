@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -81,9 +82,6 @@ func New(cfg *conf.Config, log *logx.Log) *App {
 }
 
 func (a *App) Start() error {
-	if err := a.link.Start(); err != nil {
-		return err
-	}
 	a.engine.Start()
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -94,13 +92,20 @@ func (a *App) Start() error {
 	}()
 	a.gsx.Start()
 	a.startSim()
+	go a.updateLoop()
+	if !a.cfg.SharedCockpit() {
+		a.log.Info("shared cockpit is switched off - nothing leaves this machine, no room is joined, no ports are open")
+		return nil
+	}
+	if err := a.link.Start(); err != nil {
+		return err
+	}
 	if a.cfg.Net.Room == "" {
 		a.cfg.Net.Room = conf.RoomCode()
 		_ = a.cfg.Save()
 	}
 	a.link.SetRoom(a.cfg.Net.Room, a.cfg.Net.Pass)
 	go a.discoverLoop()
-	go a.updateLoop()
 	a.ensureRendezvous()
 	for _, u := range a.cfg.Net.RelayURLs {
 		go func(u string) {
@@ -407,6 +412,9 @@ func (a *App) StatusSnapshot() any {
 }
 
 func (a *App) connect(r *http.Request, body map[string]any) (any, error) {
+	if err := a.shared(); err != nil {
+		return nil, err
+	}
 	roomStr := strings.ToUpper(strings.TrimSpace(asString(body["room"])))
 	pass := asString(body["pass"])
 	target := strings.TrimSpace(asString(body["target"]))
@@ -465,6 +473,9 @@ func (a *App) joinRoom(room, pass string, dropPeers bool) {
 }
 
 func (a *App) disconnect(r *http.Request, body map[string]any) (any, error) {
+	if err := a.shared(); err != nil {
+		return nil, err
+	}
 	from := a.cfg.Net.Room
 	fresh := conf.RoomCode()
 	a.link.DropAll()
@@ -479,6 +490,9 @@ func (a *App) disconnect(r *http.Request, body map[string]any) (any, error) {
 }
 
 func (a *App) invite(w http.ResponseWriter, r *http.Request) (any, error) {
+	if err := a.shared(); err != nil {
+		return nil, err
+	}
 	if a.cfg.Net.Room == "" {
 		a.cfg.Net.Room = conf.RoomCode()
 		a.link.SetRoom(a.cfg.Net.Room, a.cfg.Net.Pass)
@@ -540,6 +554,9 @@ func (a *App) invite(w http.ResponseWriter, r *http.Request) (any, error) {
 }
 
 func (a *App) paste(r *http.Request, body map[string]any) (any, error) {
+	if err := a.shared(); err != nil {
+		return nil, err
+	}
 	in := strings.TrimSpace(asString(body["code"]))
 
 	if isBareCode(in) {
@@ -635,6 +652,9 @@ func orDash(s string) string {
 }
 
 func (a *App) note(r *http.Request, body map[string]any) (any, error) {
+	if err := a.shared(); err != nil {
+		return nil, err
+	}
 	text := asString(body["text"])
 	if text == "" {
 		return nil, fmt.Errorf("empty note")
@@ -870,4 +890,11 @@ func selfSent(cands []string, hosts, ports map[string]bool) string {
 		}
 	}
 	return ""
+}
+
+func (a *App) shared() error {
+	if a.cfg.SharedCockpit() {
+		return nil
+	}
+	return errors.New("shared cockpit is switched off - turn it on in Settings to invite anyone")
 }

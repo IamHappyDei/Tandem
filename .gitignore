@@ -26,3 +26,5 @@ bridge/dotnet/bin/
 *.exe.png
 *_i.c
 *_p.c
+bridge/dotnet/SimConnect.dll
+bridge/dotnet/Microsoft.FlightSimulator.SimConnect.dll

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.WebSockets;
+using System.IO;
+using Microsoft.Win32;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -38,6 +40,7 @@ namespace TandemSim
         static bool connectedToSim;
         static int intervalMs = 250;
         static string url = "ws://127.0.0.1:8796/";
+        static string forced = "";
         static uint nextTextDef = 9000;
 
         sealed class Watched
@@ -59,12 +62,22 @@ namespace TandemSim
                 {
                     url = "ws://127.0.0.1:" + argv[++i] + "/";
                 }
+                else if (argv[i] == "--simconnect" && i + 1 < argv.Length)
+                {
+                    forced = argv[++i];
+                }
                 else if (argv[i] == "--interval" && i + 1 < argv.Length)
                 {
                     intervalMs = int.Parse(argv[++i], CultureInfo.InvariantCulture);
                 }
             }
             Log("tandem-sim is asking the sim what the aircraft's switches say, and telling " + url);
+            if (!FindSimConnect())
+            {
+                Log("SimConnect.dll is not anywhere Tandem can find - start this from the MSFS " +
+                    "machine, or put SimConnect.dll next to tandem-sim.exe");
+                return 3;
+            }
             var pump = new Thread(() => { Pump().Wait(); });
             pump.IsBackground = true;
             pump.Start();
@@ -84,6 +97,71 @@ namespace TandemSim
                     Thread.Sleep(3000);
                 }
                 Thread.Sleep(intervalMs);
+            }
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool SetDllDirectory(string lpPathName);
+
+        static bool FindSimConnect()
+        {
+            if (!string.IsNullOrEmpty(forced) && File.Exists(forced))
+            {
+                SetDllDirectory(Path.GetDirectoryName(Path.GetFullPath(forced)));
+                Log("SimConnect.dll as you named it: " + forced);
+                return true;
+            }
+            var local = Path.Combine(AppContext.BaseDirectory, "SimConnect.dll");
+            if (File.Exists(local)) { return true; }
+            foreach (var candidate in PlacesToLook())
+            {
+                if (!File.Exists(candidate)) { continue; }
+                SetDllDirectory(Path.GetDirectoryName(candidate));
+                Log("SimConnect.dll is at " + candidate);
+                return true;
+            }
+            return false;
+        }
+
+        static IEnumerable<string> PlacesToLook()
+        {
+            foreach (var key in new[] { @"SOFTWARE\Microsoft\Microsoft Flight Simulator 2024",
+                                        @"SOFTWARE\Microsoft\Microsoft Flight Simulator",
+                                        @"SOFTWARE\WOW6432Node\Microsoft\Microsoft Flight Simulator" })
+            {
+                foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser })
+                {
+                    string path = null;
+                    try
+                    {
+                        using (var k = hive.OpenSubKey(key))
+                        {
+                            path = k?.GetValue("InstallPath") as string;
+                        }
+                    }
+                    catch { }
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        yield return Path.Combine(path, "SimConnect.dll");
+                    }
+                }
+            }
+            foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                                         Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) })
+            {
+                foreach (var name in new[] { "Microsoft Flight Simulator 2024", "Microsoft Flight Simulator", "MSFS2024" })
+                {
+                    yield return Path.Combine(root, name, "SimConnect.dll");
+                }
+            }
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                if (drive.DriveType != DriveType.Fixed) { continue; }
+                foreach (var name in new[] { "MSFS2024", "Microsoft Flight Simulator 2024", "Flight Simulator" })
+                {
+                    yield return Path.Combine(drive.RootDirectory.FullName, name, "SimConnect.dll");
+                    yield return Path.Combine(drive.RootDirectory.FullName, "Program Files", name, "SimConnect.dll");
+                }
             }
         }
 
