@@ -64,6 +64,7 @@ type Msg struct {
 	Peers     []string         `json:"peers,omitempty"`
 	Via       string           `json:"via,omitempty"`
 	Cands     []string         `json:"cands,omitempty"`
+	Vars      map[string]any   `json:"vars,omitempty"`
 	From      *PeerRef         `json:"from,omitempty"`
 }
 

@@ -1,0 +1,13 @@
+{
+  "content_type": "MISC",
+  "title": "Tandem Bridge",
+  "manufacturer": "Tandem",
+  "creator": "Tandem",
+  "package_version": 1,
+  "minimum_game_version": "1.40.12",
+  "export_type": "Community",
+  "unique_name": "tandem.bridge",
+  "friendly_name": "Tandem Bridge",
+  "type": "Misc",
+  "dependencies": []
+}

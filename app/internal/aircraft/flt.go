@@ -98,6 +98,7 @@ func gather(root string) []string {
 }
 
 func FromFlightFiles(pkgs []Package) (Package, string, bool) {
+	pkgs = Aircraft(pkgs)
 	files := FlightFiles()
 	for _, f := range files[:minInt(len(files), 6)] {
 		b, err := os.ReadFile(f)
@@ -112,6 +113,7 @@ func FromFlightFiles(pkgs []Package) (Package, string, bool) {
 			if p, ok := Guess(pkgs, said); ok {
 				return p, "from the last flight file", true
 			}
+			return Package{}, "the sim says " + said + " and nothing in the folder answers to it", false
 		}
 	}
 	return Package{}, "", false

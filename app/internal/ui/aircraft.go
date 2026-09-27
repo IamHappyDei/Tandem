@@ -122,7 +122,10 @@ func (a *App) autoAircraft() {
 	if !a.ac.Auto() || a.ac.IsPinned() {
 		return
 	}
-	p, why, ok := aircraft.Best(aircraft.Aircraft(a.ac.List()), a.gsx.State())
+	p, why, ok := a.simDetect(a.ac.List())
+	if !ok {
+		p, why, ok = aircraft.Best(aircraft.Aircraft(a.ac.List()), a.gsx.State())
+	}
 	if !ok {
 		return
 	}

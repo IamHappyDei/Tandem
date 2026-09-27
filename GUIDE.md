@@ -178,6 +178,32 @@ means *mirror this one for this aircraft*; unticked, an order for it is noted an
 counted in `sync.counters.filtered`, never dropped in silence. Leave them all ticked and
 every service is mirrored, including ones the sim has not mentioned yet.
 
+## The sim bridge (`tandem/internal/bridge`)
+
+Tandem listens on `ws://127.0.0.1:8796/` when *Settings → Sim bridge* is on, and speaks the
+same frames it uses for GSX (`snapshot`, `patch`). A community package - `tandem-bridge`,
+installed by the app or by `tandem sim-install <community folder>` - holds the page that runs
+inside the sim: it reports `aircraft.title`, and then only the simvars the active profile
+lists (`simVars`). Writes go the other way as `patch` frames with `write: true`.
+
+- The package is **opt-in and inert by default**: `sim.enabled` is false until you turn it on,
+  and turning it off leaves the files in place but nothing talks to anything.
+- Install and remove are marker-based (`.tandem-bridge/installed` inside the folder it made):
+  `tandem sim-remove` deletes that folder and nothing else. It will not touch an aircraft or
+  scenery it did not put there, and it refuses a folder that does not exist.
+- `simToPeer` (defaults to whatever `sim.enabled` is) decides whether what the sim reported
+  reaches your coworkers. On receipt, the *receiver's* profile is asked - if that aircraft
+  profile does not list those switches, the values are dropped and the log says so.
+
+## Detection
+
+**Detect** asks the sim first (the bridge: "the sim said so"), then GSX, then the flight
+files. If none of them can name an airframe in the folder, it says so instead of guessing:
+*"the sim says FenixA321 IAE SL SC and nothing in the folder answers to it"* - which is
+true, and is worth more than a confident wrong aeroplane. Livery, paint and texture packages
+are excluded from the aircraft list entirely: an A321 read as "A320 EasyJet G-UZHN" was a
+livery folder winning a match it had no business being in.
+
 **Detect** asks two things in order: what GSX reports about the loaded aircraft, and the
 `Sim=` line in the flight files MSFS writes when you start or save a flight (newest file, the
 2024 package before the 2020 one, scenery and tool packages excluded — "GSX World" is a

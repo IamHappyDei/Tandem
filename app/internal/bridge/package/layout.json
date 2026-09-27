@@ -1,0 +1,8 @@
+{
+  "content": [
+    { "path": "manifest.json", "size": 300, "date": 0 },
+    { "path": "html_ui/Pages/VCockpit/Instruments/Tandem/Bridge/tandem-bridge.html", "size": 420, "date": 0 },
+    { "path": "html_ui/Pages/VCockpit/Instruments/Tandem/Bridge/tandem-bridge.js", "size": 5200, "date": 0 }
+  ],
+  "elements": []
+}

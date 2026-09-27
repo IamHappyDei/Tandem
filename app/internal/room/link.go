@@ -22,6 +22,7 @@ type Handlers struct {
 	OnAction func(p *Peer, m *Msg)
 	OnDigest func(p *Peer, m *Msg)
 	OnNote   func(p *Peer, m *Msg)
+	OnSim    func(p *Peer, m *Msg)
 	OnJoin   func(p *Peer)
 	OnLeave  func(p *Peer)
 
@@ -386,6 +387,10 @@ func (l *Link) handleFrame(tr *transport, m *Msg) {
 	case "note":
 		if l.H.OnNote != nil {
 			l.H.OnNote(p, m)
+		}
+	case "sim":
+		if l.H.OnSim != nil {
+			l.H.OnSim(p, m)
 		}
 	case "ask":
 		l.digestRequest(p)

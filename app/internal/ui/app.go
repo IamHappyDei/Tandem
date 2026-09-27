@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"tandem/internal/aircraft"
+	"tandem/internal/bridge"
 	"tandem/internal/conf"
 
 	"tandem/internal/gsx"
@@ -47,6 +48,7 @@ type App struct {
 	subs      []chan logx.Rec
 	srv       *http.Server
 	up        Update
+	sim       *bridge.Server
 	upClient  *http.Client
 	OnQuit    func()
 }
@@ -74,6 +76,7 @@ func New(cfg *conf.Config, log *logx.Log) *App {
 		StartPaused: cfg.Sync.Paused, Name: cfg.Net.Name,
 	}, g, l, elog)
 	a := &App{cfg: cfg, log: log, gsx: g, link: l, engine: e, upSince: time.Now(), ac: acs}
+	e.OnSim(a.fromPeerVars)
 	return a
 }
 
@@ -90,6 +93,7 @@ func (a *App) Start() error {
 		}
 	}()
 	a.gsx.Start()
+	a.startSim()
 	if a.cfg.Net.Room == "" {
 		a.cfg.Net.Room = conf.RoomCode()
 		_ = a.cfg.Save()
@@ -112,6 +116,7 @@ func (a *App) Start() error {
 }
 
 func (a *App) Stop() {
+	a.stopSim()
 	a.gsx.Stop()
 	a.link.Stop()
 	a.engine.Stop()
@@ -150,6 +155,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("/api/update", a.post(a.hUpdate))
 	mux.HandleFunc("/api/update/apply", a.post(a.hApply))
 	mux.HandleFunc("/api/aircraft", a.either(a.hAircraft))
+	mux.HandleFunc("/api/sim", a.either(a.hSim))
 	return mux
 }
 
@@ -284,6 +290,7 @@ func (a *App) status(w http.ResponseWriter, r *http.Request) (any, error) {
 		"uiPort":        a.cfg.UI.Port,
 		"logFile":       filepath.Base(conf.LogPath()),
 		"aircraft":      a.aircraftBrief(),
+		"sim":           a.simBrief(),
 		"gsxSync":       a.cfg.Sync.GsxSync,
 		"paused":        a.cfg.Sync.Paused,
 		"update":        a.updateInfo(),

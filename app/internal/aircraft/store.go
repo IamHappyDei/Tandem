@@ -16,6 +16,7 @@ type Profile struct {
 	Label    string    `json:"label"`
 	GsxSync  bool      `json:"gsxSync"`
 	Services []string  `json:"services,omitempty"`
+	SimVars  []string  `json:"simVars,omitempty"`
 	Note     string    `json:"note,omitempty"`
 	Updated  int64     `json:"updated"`
 	Seen     time.Time `json:"-"`
@@ -158,6 +159,33 @@ func (s *Store) Set(key, label string, gsxSync bool, services []string) {
 	p.Label, p.GsxSync, p.Services, p.Updated = label, gsxSync, services, time.Now().Unix()
 }
 
+func (s *Store) SetSimVars(key string, vars []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.Profiles[key]
+	if !ok {
+		p = &Profile{Key: key}
+		s.Profiles[key] = p
+	}
+	p.SimVars, p.Updated = vars, time.Now().Unix()
+}
+
+func (p *Profile) AllowsSimVars(names []string) bool {
+	if len(p.SimVars) == 0 {
+		return false
+	}
+	want := map[string]bool{}
+	for _, n := range p.SimVars {
+		want[n] = true
+	}
+	for _, n := range names {
+		if !want[n] {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Store) SetActive(key, why string) {
 	s.SetActivePinned(key, why, false)
 }
@@ -269,9 +297,6 @@ func (s *Store) Summary() map[string]any {
 	}
 }
 
-// distinctives are the words in a title that actually identify the airframe - a brand
-// name alone ("Fenix") matches every aircraft that brand makes, which is how an A321 in
-// the sim came to be read as an A320 here.
 func distinctives(title string) []string {
 	out := []string{}
 	for _, w := range strings.Fields(title) {

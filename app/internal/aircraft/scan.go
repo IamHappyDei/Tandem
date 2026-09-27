@@ -230,7 +230,7 @@ func depth(path, root string) int {
 func Aircraft(pkgs []Package) []Package {
 	out := []Package{}
 	for _, p := range pkgs {
-		if p.Kind == "AIRCRAFT" {
+		if p.Kind == "AIRCRAFT" && !isLivery(p) {
 			out = append(out, p)
 		}
 	}
@@ -270,4 +270,14 @@ func Best(pkgs []Package, state map[string]any) (Package, string, bool) {
 		return p, why, true
 	}
 	return FromFlightFiles(pkgs)
+}
+
+func isLivery(p Package) bool {
+	low := strings.ToLower(p.Key() + " " + p.Title + " " + p.Dir)
+	for _, w := range []string{"livery", "liveries", "paint", "scheme", "texture", "skin"} {
+		if strings.Contains(low, w) {
+			return true
+		}
+	}
+	return false
 }

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"tandem/internal/aircraft"
+	"tandem/internal/bridge"
 	"tandem/internal/conf"
 	"tandem/internal/discover"
 	"tandem/internal/fake"
@@ -58,6 +60,10 @@ func main() {
 		runWindow(fs.Args())
 	case "update":
 		runUpdate(*get)
+	case "sim-install":
+		cmdSimInstall(fs.Args())
+	case "sim-remove":
+		cmdSimRemove(fs.Args())
 	case "version":
 		fmt.Println(ui.Version)
 	default:
@@ -343,4 +349,52 @@ func runUpdate(get bool) {
 		os.Exit(1)
 	}
 	fmt.Printf("the installer (%v) is downloaded and starting - this copy is closing so the files are free\n", out["installer"])
+}
+
+func cmdSimInstall(a []string) {
+	dir := communityFrom(a)
+	if dir == "" {
+		dir = aircraft.Open("").CommunityDir()
+	}
+	if dir == "" {
+		fmt.Fprintln(os.Stderr, "no community folder found - name the folder as an argument")
+		os.Exit(2)
+	}
+	b := bridge.New(0, logx.New("warn"))
+	dest, err := b.InstallInto(dir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "could not be put there:", err)
+		os.Exit(1)
+	}
+	fmt.Println("the bridge is in", dest)
+	fmt.Println("restart the sim if it was already open")
+}
+
+func cmdSimRemove(a []string) {
+	dir := communityFrom(a)
+	if dir == "" {
+		dir = aircraft.Open("").CommunityDir()
+	}
+	if err := bridge.UninstallFrom(dir); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Println("it is gone from", dir)
+}
+
+func communityFrom(a []string) string {
+	for _, x := range a {
+		if strings.HasPrefix(x, "--community=") {
+			x = strings.TrimPrefix(x, "--community=")
+		} else if strings.HasPrefix(x, "-") {
+			continue
+		}
+		fi, err := os.Stat(x)
+		if err != nil || !fi.IsDir() {
+			fmt.Fprintln(os.Stderr, "that folder is not there:", x)
+			os.Exit(2)
+		}
+		return x
+	}
+	return ""
 }

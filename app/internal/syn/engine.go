@@ -336,6 +336,22 @@ func (e *Engine) indexOfLabel(label string) int {
 	return -1
 }
 
+func (e *Engine) NoteSim(vars map[string]any) {
+	if !e.syncing() || len(vars) == 0 {
+		return
+	}
+	e.link.Broadcast(e.link.Envelope(&room.Msg{T: "sim", Vars: vars}))
+}
+
+func (e *Engine) OnSim(f func(map[string]any)) {
+	e.link.H.OnSim = func(p *room.Peer, m *room.Msg) {
+		if len(m.Vars) == 0 {
+			return
+		}
+		f(m.Vars)
+	}
+}
+
 func (e *Engine) publishDigest() {
 	m := menuOf(e.gsx)
 	mb := &room.MenuBrief{}

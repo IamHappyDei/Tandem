@@ -46,6 +46,8 @@ type Sync struct {
 	ReconcileSeconds int    `json:"reconcileSeconds"`
 	ConfirmDigests   int    `json:"confirmDigests"`
 	AutoStop         bool   `json:"autoStop"`
+	SimToPeer        *bool  `json:"simToPeer,omitempty"`
+	PeerToSim        *bool  `json:"peerToSim,omitempty"`
 	GraceSeconds     int    `json:"graceSeconds"`
 	MaxReplays       int    `json:"maxReplaysPerService"`
 	CaptureState     bool   `json:"captureState"`
@@ -56,6 +58,7 @@ type Config struct {
 	GSX     Gsx  `json:"gsx"`
 	Net     Net  `json:"net"`
 	Sync    Sync `json:"sync"`
+	Sim     Sim  `json:"sim"`
 	Link    Link `json:"link"`
 	UI      struct {
 		Port          int  `json:"port"`
@@ -67,6 +70,14 @@ type Config struct {
 	} `json:"log"`
 	Peers []PeerHint `json:"peers,omitempty"`
 }
+
+type Sim struct {
+	Enabled bool     `json:"enabled"`
+	Port    int      `json:"port"`
+	Watch   []string `json:"watch,omitempty"`
+}
+
+func (s Sim) SimToPeer() bool { return s.Enabled }
 
 type PeerHint struct {
 	Room  string `json:"room"`
@@ -237,4 +248,27 @@ func Code() string {
 		out[i] = alphabet[n.Int64()]
 	}
 	return string(out)
+}
+
+func boolPtr(v bool) *bool { return &v }
+
+func (c *Config) SimPort() int {
+	if c.Sim.Port == 0 {
+		return 8796
+	}
+	return c.Sim.Port
+}
+
+func (c *Config) SimToPeer() bool {
+	if c.Sync.SimToPeer == nil {
+		return c.Sim.Enabled
+	}
+	return *c.Sync.SimToPeer
+}
+
+func (c *Config) PeerToSim() bool {
+	if c.Sync.PeerToSim == nil {
+		return c.Sim.Enabled
+	}
+	return *c.Sync.PeerToSim
 }
