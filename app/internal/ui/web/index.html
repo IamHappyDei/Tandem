@@ -231,7 +231,8 @@
         <label>passphrase</label><input id="sPass" placeholder="optional">
         <label>rendezvous</label><input id="sRdv" placeholder="host:port of a phone-book server (for codes, later)">
         <label>relay</label><input id="sRelay" placeholder="ws://your-vps:8791 (last resort)">
-        <label>community</label><input id="sComm" placeholder="the folder your aircraft live in">
+        <label>community</label><input id="sComm" placeholder="the folder your aircraft live in" spellcheck="false">
+          <span class="q"><button class="ghost sm" id="sCommPaste" title="Ctrl+V in the box does the same">Paste</button></span>
       </div>
       <div class="opts">
         <label class="opt"><input type="checkbox" id="sUpd">
@@ -593,6 +594,18 @@ $('#acPick').onchange = () => aircraftPost({active: $('#acPick').value}, $('#acP
 $('#acDetect').onclick = () => aircraftPost({detect: true}, 'looked at what GSX reports');
 $('#acRescan').onclick = () => aircraftPost({community: (AC && AC.community) || 'rescan'}, 'folder walked again');
 $('#sComm').onchange = () => aircraftPost({community: $('#sComm').value.trim()}, 'folder changed');
+async function pasteCommunity(){
+  try { const d = await api('/api/clipboard', {});
+    const t = String(d.text||'').split(/?
+/)[0].trim().replace(/^"|"$/g,'');
+    if (!t) throw new Error('the clipboard holds no text');
+    $('#sComm').value = t; aircraftPost({community: t}, 'pasted that folder in');
+  } catch(e){ flash($('#acHint'), e.message + ' - type it instead', 'bad'); }
+}
+$('#sCommPaste').onclick = pasteCommunity;
+$('#sComm').addEventListener('keydown', ev => {
+  if ((ev.ctrlKey||ev.metaKey) && (ev.key==='v'||ev.key==='V')) { ev.preventDefault(); pasteCommunity(); }
+});
 $('#simBtn').onclick = () => simPost({enabled: !(S && S.app && S.app.sim && S.app.sim.enabled)}, 'sim bridge on - the sim can talk to Tandem');
 $('#simInstall').onclick = () => simPost({enabled: true}, 'the bridge page is in the community folder');
 $('#simRemove').onclick = async () => { try { await api('/api/sim', {uninstall:true}); flash($('#simMsg'),'the folder Tandem made is gone','ok'); } catch(e){ flash($('#simMsg'), e.message,'bad'); } };

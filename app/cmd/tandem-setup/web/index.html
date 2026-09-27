@@ -60,7 +60,8 @@
       <div style="height:8px"></div>
       <label class="fld">Where your aircraft live<input id="comm" placeholder="the Community folder MSFS reads">
         <span class="hint" id="commHint">looking for it…</span>
-        <button class="ghost sm" id="commFind" type="button">Find it</button></label>
+        <button class="ghost sm" id="commFind" type="button">Find it</button>
+        <button class="ghost sm" id="commPaste" type="button" title="Ctrl+V works in this box too">Paste</button></label>
       <label class="chk"><input type="checkbox" id="bridge" checked> Put the Tandem bridge page there <span class="mut">(the aircraft's own switches — Tandem does not use it unless you switch it on later)</span></label>
     </div>
 
@@ -155,6 +156,21 @@ $('#uninstall').onclick=()=>{
 $('#launch').onclick=()=>{ post('/api/launch').catch(()=>{}); setTimeout(()=>window.close(),300); };
 $('#close').onclick=()=>{ post('/api/quit').catch(()=>{}); setTimeout(()=>window.close(),200); };
 </script></body></html>
+async function pasteIntoComm(){
+  try {
+    const d = await post('/api/clipboard',{});
+    const t = String(d.text||'').split(/?
+/)[0].trim().replace(/^"|"$/g,'');
+    if(!t) throw new Error('the clipboard holds no text');
+    $('#comm').value = t;
+    $('#commHint').textContent = 'pasted - make sure it is the folder itself, not a file inside it';
+  } catch(e) { $('#commHint').textContent = (e.message||'could not read the clipboard') + ' - type it instead'; }
+}
+$('#commPaste').onclick=pasteIntoComm;
+$('#comm').addEventListener('keydown', ev=>{
+  if((ev.ctrlKey||ev.metaKey) && (ev.key==='v'||ev.key==='V')) { ev.preventDefault(); pasteIntoComm(); }
+});
+$('#comm').focus();
 $('#commFind').onclick=async()=>{
   $('#commHint').textContent='looking…';
   const d = await (await fetch('/api/info?fresh='+Date.now(),{cache:'no-store'})).json();
