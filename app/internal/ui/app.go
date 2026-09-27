@@ -297,6 +297,7 @@ func (a *App) status(w http.ResponseWriter, r *http.Request) (any, error) {
 		"aircraft":      a.aircraftBrief(),
 		"sim":           a.simBrief(),
 		"gsxSync":       a.cfg.Sync.GsxSync,
+		"shared":        a.cfg.SharedCockpit(),
 		"paused":        a.cfg.Sync.Paused,
 		"update":        a.updateInfo(),
 		"checkUpdates":  !a.cfg.UI.NoUpdateCheck,
@@ -738,6 +739,9 @@ func (a *App) saveConfig(r *http.Request, body map[string]any) (any, error) {
 	if v, ok := body["reconcileSeconds"]; ok {
 		a.cfg.Sync.ReconcileSeconds = int(asFloat(v))
 		a.engine.SetReconcile(int(asFloat(v)))
+	}
+	if v, ok := body["shared"].(bool); ok {
+		a.applyShared(v)
 	}
 	if v, ok := body["gsxSync"].(bool); ok {
 		a.cfg.Sync.GsxSync = v

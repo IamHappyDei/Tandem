@@ -128,6 +128,12 @@ func (a *App) hSim(r *http.Request, body map[string]any) (any, error) {
 			return nil, err
 		}
 	}
+	if _, ok := body["uninstall"].(bool); ok {
+		if err := a.uninstallBridge(); err != nil {
+			return nil, err
+		}
+		a.log.Info("the bridge folder Tandem made in %s is gone", a.ac.CommunityDir())
+	}
 	if v, ok := body["installDir"].(string); ok && strings.TrimSpace(v) != "" {
 		a.ac.SetCommunity(v)
 		a.log.Info("looking for aircraft - and for the bridge - in %s", a.ac.CommunityDir())

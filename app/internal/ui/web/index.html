@@ -191,6 +191,17 @@
     <div class="svcs" id="acSvcs" hidden></div>
   </div>
 
+  <div class="card" id="simCard">
+    <div class="h2 rowh"><span>the aircraft's own switches</span><span class="q"><button class="ghost sm" id="simBtn">Sim bridge</button></span></div>
+    <div id="simNote"></div>
+    <div class="grid">
+      <label>switches to read</label><textarea id="simWatch" rows="3" placeholder="L:AP_MASTER&#10;L:KAP700_STANDBY_POWER, Bool&#10;BLEAK-PRESSURE, psi"></textarea>
+    </div>
+    <label class="opt" style="padding-left:0"><input type="checkbox" id="simPeers"><span><span class="t">Let what the sim reports reach the room</span><span class="d">Off, Tandem reads the aircraft for itself and shows it here, and nothing of it is sent to a coworker. On, each switch that changes is announced — and a switch a coworker moves is put back into <b>your</b> sim, but only if this aircraft's profile lists that name.</span></span></label>
+    <div class="optrow"><button class="ghost sm" id="simInstall">Put the bridge in the community folder</button><button class="ghost sm" id="simRemove">Take it out</button><span class="msg" id="simMsg"></span></div>
+    <div class="small" id="simVals"></div>
+  </div>
+
   <div class="card" id="syncCard">
     <div class="h2 rowh"><span>ground services</span><span class="q"><button class="ghost sm" id="gsxBtn">GSX sync</button><button class="ghost sm" id="pauseBtn">Pause</button></span></div>
     <div id="muteNote"></div>
@@ -228,6 +239,10 @@
           <span class="d">The only thing sent out is the version number — no account, no name, nothing else. When something newer is listed, the link at the bottom of this window says so and you decide. Updating never happens by itself: <b>you press it</b>.</span></span></label>
         <div class="optrow"><button class="ghost sm" id="upNow">Check now</button><button class="primary sm" id="upGet" hidden>Download &amp; install</button><span class="msg" id="upMsg">not checked yet</span></div>
         <div class="optnote" id="upNote"></div>
+
+        <label class="opt"><input type="checkbox" id="sSharedOn">
+          <span><span class="t">Shared cockpit — let a coworker's cockpit join this one</span>
+          <span class="d">The whole networking feature: the room, the invite string, the ports it listens on. <b>Off, nothing leaves this machine</b> and no port is open — GSX stays exactly as it is on its own. It is off on a fresh install; turning it on opens the room port again and lets the string work.</span></span></label>
 
         <label class="opt"><input type="checkbox" id="sShare">
           <span><span class="t">Share GSX ground services with the room</span>
@@ -419,6 +434,8 @@ function render(){
   $('#muteNote').innerHTML = sy.paused ? '<div class="note"><b>Paused.</b> This cockpit does nothing on its own and refuses what the other one orders. Press <b>Resume</b> to carry on.</div>'
     : (sy.gsxSync === false ? '<div class="note"><b>GSX sync is off.</b> The room is connected and your co-pilot still sees you here, but ground services are not ordered in either cockpit while this is off.</div>' : '');
   paintAircraft(a.aircraft || {});
+  paintSim(a.sim || {}, a);
+  if (document.activeElement !== $("#sSharedOn")) $("#sSharedOn").checked = a.shared !== false;
   if (document.activeElement !== $("#sShare")) $("#sShare").checked = sy.gsxSync !== false;
   if (document.activeElement !== $("#sPause")) $("#sPause").checked = !!sy.paused;
   $('#upGet').hidden = !canGet;
@@ -564,6 +581,7 @@ $('#gsxBtn').onclick = () => { const on = !(S && S.status && S.status.sync && S.
   setCfg({gsxSync: !on}, on ? 'GSX sync off — the room stays connected' : 'GSX sync on'); };
 $('#pauseBtn').onclick = () => { const p = !!(S && S.status && S.status.sync && S.status.sync.paused);
   setCfg({paused: !p}, p ? 'resumed' : 'paused — nothing is sent or applied'); };
+$('#sSharedOn').onchange = () => setCfg({shared: $('#sSharedOn').checked}, $('#sSharedOn').checked ? 'the room is open again' : 'shared cockpit off — ports closed');
 $('#sShare').onchange = () => setCfg({gsxSync: $('#sShare').checked}, $('#sShare').checked ? 'ground services shared again' : 'ground services not shared');
 $('#sPause').onchange = () => setCfg({paused: $('#sPause').checked}, $('#sPause').checked ? 'tandem paused' : 'tandem resumed');
 async function aircraftPost(body, msg){
@@ -575,6 +593,33 @@ $('#acPick').onchange = () => aircraftPost({active: $('#acPick').value}, $('#acP
 $('#acDetect').onclick = () => aircraftPost({detect: true}, 'looked at what GSX reports');
 $('#acRescan').onclick = () => aircraftPost({community: (AC && AC.community) || 'rescan'}, 'folder walked again');
 $('#sComm').onchange = () => aircraftPost({community: $('#sComm').value.trim()}, 'folder changed');
+$('#simBtn').onclick = () => simPost({enabled: !(S && S.app && S.app.sim && S.app.sim.enabled)}, 'sim bridge on - the sim can talk to Tandem');
+$('#simInstall').onclick = () => simPost({enabled: true}, 'the bridge page is in the community folder');
+$('#simRemove').onclick = async () => { try { await api('/api/sim', {uninstall:true}); flash($('#simMsg'),'the folder Tandem made is gone','ok'); } catch(e){ flash($('#simMsg'), e.message,'bad'); } };
+$('#simPeers').onchange = () => simPost({simToPeer: $('#simPeers').checked}, $('#simPeers').checked ? 'the room hears the aircraft' : 'the aircraft stays between you and Tandem');
+$('#simWatch').onchange = () => simPost({watch: $('#simWatch').value.split('
+').map(x=>x.trim()).filter(x=>x)}, 'the sim will be asked for those');
+async function simPost(body, msg){
+  try { const r = await api('/api/sim', body); if (r.error) { flash($('#simMsg'), r.error, 'bad'); return; }
+    flash($('#simMsg'), msg, 'ok'); await refresh(); }
+  catch(e){ flash($('#simMsg'), e.message, 'bad'); }
+}
+function paintSim(sm, a){
+  const box = $('#simWatch');
+  if (document.activeElement !== box && !(sm.wanted||[]).length === false) { /* keep the user's typing */ }
+  if (document.activeElement !== box) box.value = (sm.wanted||[]).join('
+');
+  if (document.activeElement !== $("#simPeers")) $("#simPeers").checked = !!sm.toPeers;
+  $('#simBtn').textContent = 'Sim bridge: ' + (sm.enabled ? 'on' : 'off');
+  $('#simBtn').className = 'ghost sm ' + (sm.enabled ? 'on' : 'off');
+  let note = '';
+  if (!sm.enabled) note = '<div class="note"><b>Off.</b> Tandem does not ask the sim anything, and the community page it would install stays silent. Nothing here changes how ground services work.</div>';
+  else if (!sm.connected) note = '<div class="note"><b>Listening on ' + (sm.url||'') + '</b> — the sim has not answered yet. Start MSFS with the Tandem page open in the aircraft, or run <code>tandem-sim</code> on this machine.</div>';
+  else note = '<div class="note">The sim is talking to Tandem' + (sm.title ? ' — it says <b>' + sm.title + '</b>' + (sm.tail ? ' (' + sm.tail + ')' : '') : '') + '.</div>';
+  $('#simNote').innerHTML = note;
+  const names = Object.keys(sm.vars||{});
+  $('#simVals').textContent = names.length ? 'last it heard: ' + names.slice(0,6).map(k => k + '=' + sm.vars[k]).join(', ') + (names.length>6 ? ' …' : '') : '';
+}
 $('#acShare').onchange = () => {
   const key = $('#acPick').value, p = (AC && (AC.aircraft||[]).find(x=>x.key===key)) || {};
   aircraftPost({profile:{key, label:p.label, gsxSync:$('#acShare').checked, services:p.services||[]}}, 'saved for this aircraft');
