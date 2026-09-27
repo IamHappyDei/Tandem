@@ -136,11 +136,17 @@ numbers are `major.minor.patch`, and an update never downgrades.
 
 ### Publishing one, if you are the one building it
 
-`bash build.sh` leaves `app/dist/tandem-setup.exe` and `dist/Tandem-<version>.zip`. Create
-a GitHub Release tagged `v<version>` and **attach `tandem-setup.exe`** — GitHub then records
-its SHA-256 automatically and the updater verifies against it. A zip whose name contains
-`Tandem` works too, but the automatic "Source code" archive is deliberately ignored: a
-release always has one of those, and it is not an installer.
+`bash build.sh` leaves `app/dist/tandem-setup.exe` and `dist/Tandem-<version>.zip`. Tag it,
+push the tag, then:
+
+    cd app && bash release.sh v1.1.0 notes.md   # needs the tag pushed
+
+That creates the Release, **attaches `tandem-setup.exe`** — GitHub records its SHA-256 and
+the updater verifies against it — and takes the zip along with it. Run it twice and it
+replaces the files rather than failing: a corrected build can be republished without a new
+tag. A zip whose name contains `Tandem` works as the attached file too, but the automatic
+"Source code" archive is deliberately ignored: every release has one, and it is not an
+installer.
 
 ## 7. Switches: what is shared, and with which aircraft
 
