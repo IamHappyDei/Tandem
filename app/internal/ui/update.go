@@ -114,14 +114,7 @@ func less(a, b []int) bool {
 }
 
 func (a *App) updateNow() Update {
-	u := checkUpdate(a.upClient)
-	if u.Newer {
-		if ref, why := installerFor(a.upClient, u.Latest); ref.Name != "" {
-			u.Asset = ref
-		} else {
-			u.Asset.Error = why
-		}
-	}
+	u := checkFull(a.upClient)
 	a.mu.Lock()
 	a.up = u
 	a.mu.Unlock()
@@ -222,6 +215,20 @@ func (a *App) hUpdate(r *http.Request, body map[string]any) (any, error) {
 }
 
 func CheckNow() Update { return checkUpdate(nil) }
+
+func checkFull(client *http.Client) Update {
+	u := checkUpdate(client)
+	if u.Newer {
+		if ref, why := installerFor(client, u.Latest); ref.Name != "" {
+			u.Asset = ref
+		} else {
+			u.Asset.Error = why
+		}
+	}
+	return u
+}
+
+func CheckRelease() Update { return checkFull(nil) }
 
 func (a *App) hApply(r *http.Request, body map[string]any) (any, error) {
 	path, err := a.applyUpdate()

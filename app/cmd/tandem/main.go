@@ -325,7 +325,7 @@ func runningPort() int {
 
 func runUpdate(get bool) {
 	if !get {
-		fmt.Println(ui.UpdateLine(ui.CheckNow()))
+		fmt.Println(ui.UpdateLine(ui.CheckRelease()))
 		return
 	}
 	url := fmt.Sprintf("http://127.0.0.1:%d/api/update/apply", runningPort())
