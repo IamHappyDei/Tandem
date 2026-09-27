@@ -21,3 +21,8 @@ tmp/
 app/packaging/tandem-*.png
 .discord-webhook
 HANDOFF.md
+bridge/dotnet/obj/
+bridge/dotnet/bin/
+*.exe.png
+*_i.c
+*_p.c
