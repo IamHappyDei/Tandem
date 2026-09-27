@@ -142,7 +142,41 @@ its SHA-256 automatically and the updater verifies against it. A zip whose name 
 `Tandem` works too, but the automatic "Source code" archive is deliberately ignored: a
 release always has one of those, and it is not an installer.
 
-## 7. Command line
+## 7. Switches: what is shared, and with which aircraft
+
+Two switches, both saved, both applied the moment you move them — no restart.
+
+**Share GSX ground services** (Settings, and a button on the *ground services* card).
+Off means: the room stays connected, your co-pilot still sees you there, notes still
+cross, and **nothing is ordered in either cockpit's GSX** — no trigger, no menu pick, no
+drift correction. Drift is still reported in the log, because refusing to act on a
+difference is not the same as not seeing it.
+
+**Pause Tandem entirely** (Settings). The hard stop. Nothing is sent, nothing is applied,
+the phone book and the relay keep the connection warm so resuming costs nothing. The footer
+says *paused* and the card says so in words — a paused window never claims to be sharing.
+
+Both are honest in `/api/status`: `sync.mode` is `gsx + room`, `room only` or `paused`, and
+`sync.counters.muted` counts the orders that were noted and refused.
+
+### Aircraft profiles
+
+Tandem can read your MSFS community folder and keep a profile per aircraft: whether that
+type shares ground services, and which services you care about. The folder is found by
+looking in the usual places and keeping whichever one actually holds aircraft — the first
+directory called `Community` is not it, on a box with three. Say so in Settings if your
+folder lives somewhere else, and press **Rescan folder** after you install something.
+
+**Detect** matches the aircraft name GSX reports against the folder and says where the name
+came from. When nothing matches it says so and you pick from the list; a profile you never
+picked is not applied to a type Tandem only guessed at. Profiles are per aircraft, so a
+profile that turns GSX sharing off for the A321 leaves every other aircraft as it was.
+
+This is also the way back: if something in a new version behaves wrong, pause, put the old
+`tandem-setup.exe` back, resume. Your config and profiles are kept in `%APPDATA%\Tandem`
+and nothing in an installer touches them.
+
+## 8. Command line
 
 ```
 tandem                       window + tray — this is the app
@@ -165,7 +199,7 @@ tandem-setup.exe --dir "D:\Tandem"      install somewhere else
 tandem-setup.exe --uninstall --quiet    for scripts and GPO
 ```
 
-## 7. Reading the window
+## 9. Reading the window
 
 | It says | Meaning |
 |---|---|
@@ -181,7 +215,7 @@ what just happened. **Settings** and **What the app is doing** are the two drawe
 the bottom — the second shows the addresses, ports, traffic counters and the live log.
 Everything refreshes by itself.
 
-## 8. When something looks wrong
+## 10. When something looks wrong
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -197,7 +231,7 @@ Everything refreshes by itself.
 
 The log is `%APPDATA%\Tandem\tandem.log`.
 
-## 9. What it does to your sim
+## 11. What it does to your sim
 
 It sends GSX actions — the same ones the GSX menu sends, through GSX's own Remote
 control server. It reads no memory, installs no add-on, touches no aircraft, FMC or

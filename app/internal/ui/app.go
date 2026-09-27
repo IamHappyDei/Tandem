@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"tandem/internal/aircraft"
 	"tandem/internal/conf"
 
 	"tandem/internal/gsx"
@@ -36,6 +37,7 @@ type App struct {
 	gsx    *gsx.Client
 	link   *room.Link
 	engine *syn.Engine
+	ac     *aircraft.Store
 
 	mu        sync.Mutex
 	joinedURL string
@@ -62,15 +64,16 @@ func New(cfg *conf.Config, log *logx.Log) *App {
 		Bind: cfg.Net.Bind, Port: cfg.Net.Port, UDPPort: cfg.Net.UDPPort, Log: llog,
 	})
 	g := gsx.New(cfg.GSX.URL, cfg.GSX.Channels, glog, cfg.Sync.DebounceMs)
+	acs := aircraft.Open(filepath.Join(conf.Dir(), "aircraft.json"))
 	e := syn.NewEngine(syn.EngineConfig{
 		Role: cfg.Sync.Role, EchoMs: cfg.Sync.EchoMs, DebounceMs: cfg.Sync.DebounceMs,
 		MirrorMenuPicks: cfg.Sync.MirrorMenuPicks, AutoReconcile: cfg.Sync.AutoReconcile,
 		ReconcileSeconds: cfg.Sync.ReconcileSeconds, ConfirmDigests: cfg.Sync.ConfirmDigests,
 		GraceSeconds: cfg.Sync.GraceSeconds, MaxReplays: cfg.Sync.MaxReplays,
-		CaptureState: cfg.Sync.CaptureState, GsxSyncDisabled: !cfg.Sync.GsxSync,
+		CaptureState: cfg.Sync.CaptureState, GsxSyncDisabled: !gsxShared(cfg, acs),
 		StartPaused: cfg.Sync.Paused, Name: cfg.Net.Name,
 	}, g, l, elog)
-	a := &App{cfg: cfg, log: log, gsx: g, link: l, engine: e, upSince: time.Now()}
+	a := &App{cfg: cfg, log: log, gsx: g, link: l, engine: e, upSince: time.Now(), ac: acs}
 	return a
 }
 
@@ -139,6 +142,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("/api/quit", a.post(a.quit))
 	mux.HandleFunc("/api/update", a.post(a.hUpdate))
 	mux.HandleFunc("/api/update/apply", a.post(a.hApply))
+	mux.HandleFunc("/api/aircraft", a.either(a.hAircraft))
 	return mux
 }
 
@@ -209,6 +213,24 @@ func (a *App) cors(h func(r *http.Request, body map[string]any) (any, error)) ht
 	return a.post(h)
 }
 
+func (a *App) either(h func(r *http.Request, body map[string]any) (any, error)) http.HandlerFunc {
+	get := a.post(h)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			out, err := h(r, map[string]any{})
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(out)
+			return
+		}
+		get(w, r)
+	}
+}
+
 func (a *App) quit(r *http.Request, body map[string]any) (any, error) {
 	a.log.Info("quit requested from the dashboard - closing shop")
 	go func() {
@@ -254,6 +276,7 @@ func (a *App) status(w http.ResponseWriter, r *http.Request) (any, error) {
 		"name":          a.cfg.Net.Name,
 		"uiPort":        a.cfg.UI.Port,
 		"logFile":       filepath.Base(conf.LogPath()),
+		"aircraft":      a.aircraftBrief(),
 		"gsxSync":       a.cfg.Sync.GsxSync,
 		"paused":        a.cfg.Sync.Paused,
 		"update":        a.updateInfo(),
@@ -819,7 +842,7 @@ func modeOf(c *conf.Config) string {
 	return "room"
 }
 
-const Version = "1.0.0"
+const Version = "1.1.0"
 
 func selfSent(cands []string, hosts, ports map[string]bool) string {
 	for _, c := range cands {

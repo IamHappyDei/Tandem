@@ -103,6 +103,10 @@
   .rowh .q{display:flex;gap:7px}
   button.on{border-color:#256a52;color:var(--ok);background:#0d1a16}
   button.off{border-color:#7a4a2a;color:var(--warn);background:#1a120a}
+  select{font:inherit;background:#0a0f17;border:1px solid var(--line);border-radius:10px;color:var(--tx);padding:11px 13px;width:100%}
+  select:focus{outline:none;border-color:#2f6f8f}
+  .acline{display:flex;gap:8px;align-items:center}
+  .small{font-size:12px;color:var(--dim);line-height:1.6}
   .note{border:1px dashed #3a4657;border-radius:10px;padding:9px 11px;color:var(--dim);font-size:12.5px;line-height:1.6;margin-bottom:10px}
   .note b{color:var(--warn);font-weight:600}
   .logbox{margin-top:14px;background:#070b11;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:11.5px/1.75 var(--mono);max-height:180px;overflow:auto;color:var(--mut)}
@@ -176,6 +180,13 @@
     </div>
   </div>
 
+  <div class="card" id="acCard">
+    <div class="h2 rowh"><span>this aircraft</span><span class="q"><button class="ghost sm" id="acDetect">Detect</button><button class="ghost sm" id="acRescan">Rescan folder</button></span></div>
+    <div class="acline"><select id="acPick"><option value="">not chosen</option></select></div>
+    <label class="opt" id="acShareRow" style="padding-left:0"><input type="checkbox" id="acShare"><span><span class="t">Share ground services for this one</span><span class="d" id="acShareWhy">Profiles are per aircraft: leave it on and a chock or a GPU ordered in either cockpit is ordered here too.</span></span></label>
+    <div class="small" id="acHint"></div>
+  </div>
+
   <div class="card" id="syncCard">
     <div class="h2 rowh"><span>ground services</span><span class="q"><button class="ghost sm" id="gsxBtn">GSX sync</button><button class="ghost sm" id="pauseBtn">Pause</button></span></div>
     <div id="muteNote"></div>
@@ -205,6 +216,7 @@
         <label>passphrase</label><input id="sPass" placeholder="optional">
         <label>rendezvous</label><input id="sRdv" placeholder="host:port of a phone-book server (for codes, later)">
         <label>relay</label><input id="sRelay" placeholder="ws://your-vps:8791 (last resort)">
+        <label>community</label><input id="sComm" placeholder="the folder your aircraft live in">
       </div>
       <div class="opts">
         <label class="opt"><input type="checkbox" id="sUpd">
@@ -280,6 +292,26 @@ async function api(path, body){
 let S = null, logs = [], lastConnect = 0, dialAge = 0, gotFirst = false;
 let invite = {code:'', form:'plain'};   // the real string; the window may show a masked copy
 let lastLink = null;                   // so a render never stomps a checkbox mid-click
+let AC = null;                         // what the community folder holds, refreshed on demand
+
+function paintAircraft(ac){
+  const sel = $('#acPick');
+  if (!AC) { sel.innerHTML = '<option value="">loading…</option>'; $('#acHint').textContent = ''; return; }
+  const here = (AC.aircraft||[]).some(p=>p.key===ac.active) ? ac.active : (ac.active||'');
+  let html = '<option value="">not chosen</option>';
+  if (ac.active && !AC.aircraft.some(p=>p.key===ac.active)) html += '<option selected>'+ac.active+' (not in the folder now)</option>';
+  for (const p of AC.aircraft||[]) html += '<option value="'+p.key+'"'+(p.key===here?' selected':'')+'>'+p.label+(p.typeCode?' · '+p.typeCode:'')+'</option>';
+  sel.innerHTML = html; sel.value = here || '';
+  const prof = (AC.aircraft||[]).find(p=>p.key===here);
+  $('#acShare').checked = prof ? prof.gsxSync !== false : true;
+  $('#acShareRow').style.display = here ? '' : 'none';
+  if (document.activeElement !== $('#sComm')) $('#sComm').value = AC.community || '';
+  $('#acHint').textContent = (AC.community ? AC.community + ' · ' + AC.found + ' aircraft, ' + AC.other + ' other packages' : 'no community folder found — set it in Settings')
+    + (ac.why ? ' · ' + ac.label + ': ' + ac.why : '');
+  $('#acShareWhy').textContent = here && prof && prof.gsxSync === false
+    ? 'Off for this aircraft: the room stays connected, notes still cross, nothing is ordered in GSX while it is flying.'
+    : 'On for this aircraft: a chock, a GPU or a pushback ordered in either cockpit is ordered here too.';
+}
 
 function stateOf(s){
   const a = s.app, g = s.status.gsx, peers = (s.status.link&&s.status.link.peers)||[];
@@ -364,6 +396,7 @@ function render(){
   $('#pauseBtn').className = 'ghost sm ' + (sy.paused ? 'off' : 'on');
   $('#muteNote').innerHTML = sy.paused ? '<div class="note"><b>Paused.</b> This cockpit does nothing on its own and refuses what the other one orders. Press <b>Resume</b> to carry on.</div>'
     : (sy.gsxSync === false ? '<div class="note"><b>GSX sync is off.</b> The room is connected and your co-pilot still sees you here, but ground services are not ordered in either cockpit while this is off.</div>' : '');
+  paintAircraft(a.aircraft || {});
   if (document.activeElement !== $("#sShare")) $("#sShare").checked = sy.gsxSync !== false;
   if (document.activeElement !== $("#sPause")) $("#sPause").checked = !!sy.paused;
   $('#upGet').hidden = !canGet;
@@ -511,6 +544,19 @@ $('#pauseBtn').onclick = () => { const p = !!(S && S.status && S.status.sync && 
   setCfg({paused: !p}, p ? 'resumed' : 'paused — nothing is sent or applied'); };
 $('#sShare').onchange = () => setCfg({gsxSync: $('#sShare').checked}, $('#sShare').checked ? 'ground services shared again' : 'ground services not shared');
 $('#sPause').onchange = () => setCfg({paused: $('#sPause').checked}, $('#sPause').checked ? 'tandem paused' : 'tandem resumed');
+async function aircraftPost(body, msg){
+  try { const r = await api('/api/aircraft', body||{}); if (r.error) { flash($('#acHint'), r.error, 'bad'); return; }
+    AC = r; flash($('#setHint'), msg, 'ok'); await refresh(); }
+  catch(e){ flash($('#acHint'), e.message, 'bad'); }
+}
+$('#acPick').onchange = () => aircraftPost({active: $('#acPick').value}, $('#acPick').value ? 'profile in use' : 'no aircraft profile');
+$('#acDetect').onclick = () => aircraftPost({detect: true}, 'looked at what GSX reports');
+$('#acRescan').onclick = () => aircraftPost({community: (AC && AC.community) || 'rescan'}, 'folder walked again');
+$('#sComm').onchange = () => aircraftPost({community: $('#sComm').value.trim()}, 'folder changed');
+$('#acShare').onchange = () => {
+  const key = $('#acPick').value, p = (AC && (AC.aircraft||[]).find(x=>x.key===key)) || {};
+  aircraftPost({profile:{key, label:p.label, gsxSync:$('#acShare').checked, services:p.services||[]}}, 'saved for this aircraft');
+};
 $('#sUpd').onchange = async () => {
   try { await api('/api/config', {checkUpdates:$('#sUpd').checked}); flash($('#setHint'), $('#sUpd').checked ? 'will ask github every six hours' : 'will not look for updates', 'ok'); }
   catch(e){ flash($('#setHint'), e.message, 'bad'); }

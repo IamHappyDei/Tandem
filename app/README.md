@@ -25,6 +25,7 @@ the archive, because it is the one file that has to survive a broken install.
 | `internal/tray` | the tray icon and its menu |
 | `internal/fake` | a stand-in Couatl, so the whole stack is testable without the sim |
 | `internal/wire` | the types that cross a socket (leaf package, breaks the import cycle) |
+| `internal/aircraft` | reads the MSFS community folder, matches what the sim says against it, and keeps a profile per aircraft |
 | `internal/conf`, `internal/logx` | `%APPDATA%\Tandem` settings, ring-buffer logger with fan-out |
 | `internal/ui/updater.go` | the release fetch: asset choice, length-checked download, checksum, hand-off |
 | `test/uiharness.js` | renders the real dashboard against a running app, in Node, no browser |

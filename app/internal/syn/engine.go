@@ -104,12 +104,8 @@ func NewEngine(cfg EngineConfig, g *gsx.Client, l *room.Link, log *logx.Log) *En
 	return e
 }
 
-// live is the master switch: paused means the link stays up and the room can still
-// see this cockpit, but nothing is ordered anywhere - not here, not there.
 func (e *Engine) live() bool { return !e.paused.Load() }
 
-// syncing is GSX specifically: the room is still shared, only the ground services
-// are left alone.
 func (e *Engine) syncing() bool { return e.live() && e.gsxOn.Load() }
 
 func (e *Engine) Start() {
