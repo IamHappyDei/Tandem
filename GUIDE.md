@@ -178,6 +178,11 @@ means *mirror this one for this aircraft*; unticked, an order for it is noted an
 counted in `sync.counters.filtered`, never dropped in silence. Leave them all ticked and
 every service is mirrored, including ones the sim has not mentioned yet.
 
+The dashboard shows the GSX product: the version stamped in at serve time, the room, the GSX
+sync switch and Pause. "This aircraft" and "the aircraft's own switches" are hidden by default -
+their API stays reachable, and `aircraft.json` / `config.json` / the installer still control
+them, so nothing was removed to make the window look plain.
+
 ## The sim bridge (`tandem/internal/bridge`)
 
 Tandem listens on `ws://127.0.0.1:8796/` when *Settings → Sim bridge* is on, and speaks the
