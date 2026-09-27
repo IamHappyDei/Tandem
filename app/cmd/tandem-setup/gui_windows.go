@@ -19,7 +19,6 @@ import (
 
 	"tandem/internal/aircraft"
 	"tandem/internal/bridge"
-	"tandem/internal/clip"
 	"tandem/internal/conf"
 	"tandem/internal/logx"
 	"tandem/internal/pick"
@@ -87,7 +86,6 @@ func (g *gui) Handler() http.Handler {
 	mux.HandleFunc("/api/launch", g.post(g.doLaunch))
 	mux.HandleFunc("/api/elevate", g.post(g.doElevate))
 	mux.HandleFunc("/api/quit", g.post(g.doQuit))
-	mux.HandleFunc("/api/clipboard", g.clipboard)
 	mux.HandleFunc("/api/browse", g.browse)
 	mux.HandleFunc("/api/events", g.events)
 	return mux
@@ -402,15 +400,6 @@ func aircraftPath() string {
 }
 
 func strOf(v any) string { t, _ := v.(string); return t }
-
-func (g *gui) clipboard(w http.ResponseWriter, r *http.Request) {
-	t, err := clip.Text()
-	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
-		return
-	}
-	writeJSON(w, map[string]any{"text": t})
-}
 
 func (g *gui) browse(w http.ResponseWriter, r *http.Request) {
 	where, err := pick.Folder("")

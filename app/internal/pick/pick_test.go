@@ -1,6 +1,7 @@
 package pick
 
 import (
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -124,5 +125,101 @@ func TestTypingAPathIntoTheDialogIsWhatComesBack(t *testing.T) {
 		t.Skip("the dialog would not take a typed path:", err)
 	case <-time.After(6 * time.Second):
 		t.Fatal("it did not answer")
+	}
+}
+
+var (
+	pGetWindow     = user32.NewProc("GetWindow")
+	pCreateWindow  = user32.NewProc("CreateWindowExW")
+	pDestroyWindow = user32.NewProc("DestroyWindow")
+	pRegClass      = user32.NewProc("RegisterClassW")
+	pDefProc       = user32.NewProc("DefWindowProcW")
+	pLoadCursor    = user32.NewProc("LoadCursorW")
+	pPeek          = user32.NewProc("PeekMessageW")
+	pTranslate     = user32.NewProc("TranslateMessage")
+	pDispatch      = user32.NewProc("DispatchMessageW")
+)
+
+const (
+	gwOwner       = 4
+	wsOverlapped  = 0x00000000
+	wsVisible     = 0x10000000
+	gwHwndMessage = 0xffffffff
+)
+
+type wndClassW struct {
+	style         uint32
+	lpfnWndProc   uintptr
+	cbsize        int32
+	cnExtra       int32
+	cbWndExtra    int32
+	hInstance     uintptr
+	hIcon         uintptr
+	hCursor       uintptr
+	hBackground   uintptr
+	lpszMenuName  *uint16
+	lpszClassName *uint16
+	hIconSm       uintptr
+}
+
+func TestTheDialogIsOwnedByOurWindow(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	k := syscall.NewLazyDLL("kernel32.dll").NewProc("GetModuleHandleW")
+	mod, _, _ := k.Call(0)
+	stat, _ := syscall.UTF16PtrFromString("Static")
+	name, _ := syscall.UTF16PtrFromString("TandemPickOwnerWindow")
+	h, _, err := pCreateWindow.Call(0, uintptr(unsafe.Pointer(stat)),
+		uintptr(unsafe.Pointer(name)), wsVisible, 100, 100, 320, 200, 0, 0, mod, 0)
+	if h == 0 {
+		t.Fatalf("could not make a window to own the dialog: %v", err)
+	}
+	defer pDestroyWindow.Call(h)
+
+	got := make(chan uintptr, 1)
+	go func() {
+		if _, err := Folder("owned"); err != nil {
+			got <- 0
+			return
+		}
+		got <- 1
+	}()
+
+	dlgClass, _ := syscall.UTF16PtrFromString("#32770")
+	var dlg uintptr
+	deadline := time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) && dlg == 0 {
+		x, _, _ := pFindWindow.Call(uintptr(unsafe.Pointer(dlgClass)), uintptr(unsafe.Pointer(name)))
+		if x == 0 {
+			x, _, _ = pFindWindow.Call(uintptr(unsafe.Pointer(dlgClass)), 0)
+		}
+		dlg = x
+		pump()
+		if dlg == 0 {
+			time.Sleep(60 * time.Millisecond)
+		}
+	}
+	if dlg == 0 {
+		t.Fatal("the dialog never appeared")
+	}
+	owner, _, _ := pGetWindow.Call(dlg, gwOwner)
+	if owner != h {
+		t.Fatalf("the dialog answers to window %x, not our own %x - it would sit behind the page", owner, h)
+	}
+	t.Logf("the dialog is owned by our window %x, so it stays on top of it", owner)
+	pPostMessage.Call(dlg, wmClose, 0, 0)
+	<-got
+}
+
+func pump() {
+	var msg struct{ hwnd, message, wParam, lParam uintptr }
+	for i := 0; i < 16; i++ {
+		r, _, _ := pPeek.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0, 1)
+		if r == 0 {
+			return
+		}
+		pTranslate.Call(uintptr(unsafe.Pointer(&msg)))
+		pDispatch.Call(uintptr(unsafe.Pointer(&msg)))
 	}
 }

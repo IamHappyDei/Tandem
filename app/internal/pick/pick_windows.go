@@ -8,15 +8,21 @@ import (
 )
 
 var (
-	shell32         = syscall.NewLazyDLL("shell32.dll")
-	ole32           = syscall.NewLazyDLL("ole32.dll")
-	user32          = syscall.NewLazyDLL("user32.dll")
-	pBrowse         = shell32.NewProc("SHBrowseForFolderW")
-	pPathFromID     = shell32.NewProc("SHGetPathFromIDListW")
-	pCoTaskMemFree  = ole32.NewProc("CoTaskMemFree")
-	pCoInitializeEx = ole32.NewProc("CoInitializeEx")
-	pCoUninitialize = ole32.NewProc("CoUninitialize")
-	pGetActiveWindw = user32.NewProc("GetActiveWindow")
+	shell32          = syscall.NewLazyDLL("shell32.dll")
+	ole32            = syscall.NewLazyDLL("ole32.dll")
+	user32           = syscall.NewLazyDLL("user32.dll")
+	kernel32         = syscall.NewLazyDLL("kernel32.dll")
+	pBrowse          = shell32.NewProc("SHBrowseForFolderW")
+	pPathFromID      = shell32.NewProc("SHGetPathFromIDListW")
+	pCoTaskMemFree   = ole32.NewProc("CoTaskMemFree")
+	pCoInitializeEx  = ole32.NewProc("CoInitializeEx")
+	pCoUninitialize  = ole32.NewProc("CoUninitialize")
+	pGetActiveWindw  = user32.NewProc("GetActiveWindow")
+	pEnumWindows     = user32.NewProc("EnumWindows")
+	pGetWindowThread = user32.NewProc("GetWindowThreadProcessId")
+	pIsWindowVisible = user32.NewProc("IsWindowVisible")
+	pGetWindowTitle  = user32.NewProc("GetWindowTextW")
+	pGetCurrent      = kernel32.NewProc("GetCurrentProcessId")
 )
 
 const (
@@ -50,6 +56,9 @@ func Folder(title string) (string, error) {
 	defer pCoUninitialize.Call()
 
 	hwnd, _, _ := pGetActiveWindw.Call()
+	if hwnd == 0 {
+		hwnd = ownTopWindow()
+	}
 	var nameBuf [maxPath]uint16
 	info := browseInfo{
 		hwndOwner:      hwnd,
@@ -69,4 +78,32 @@ func Folder(title string) (string, error) {
 		return "", errors.New("that was not a folder on a disk")
 	}
 	return syscall.UTF16ToString(out[:]), nil
+}
+
+func ownTopWindow() uintptr {
+	me, _, _ := pGetCurrent.Call()
+	var found uintptr
+	cb := syscall.NewCallback(func(h, l uintptr) uintptr {
+		if found != 0 {
+			return 0
+		}
+		var pid uint32
+		pGetWindowThread.Call(h, uintptr(unsafe.Pointer(&pid)))
+		if uint32(pid) != uint32(me) {
+			return 1
+		}
+		v, _, _ := pIsWindowVisible.Call(h)
+		if v == 0 {
+			return 1
+		}
+		var buf [512]uint16
+		n, _, _ := pGetWindowTitle.Call(h, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+		if n == 0 {
+			return 1
+		}
+		found = h
+		return 0
+	})
+	pEnumWindows.Call(cb, 0)
+	return found
 }
