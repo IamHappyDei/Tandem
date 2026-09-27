@@ -59,6 +59,8 @@ class Hub:
             return json.loads(raw) if raw.strip() else {}
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace")[:400]
+            if e.code == 404:
+                raise NotFound(body)
             die("github said %s for %s\n%s" % (e.code, path, body))
 
 

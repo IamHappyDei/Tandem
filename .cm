@@ -1,8 +1,7 @@
-Tandem 1.2.0, and the suite now refuses to drift
+publish.py treated "no release yet" as a failure
 
-Turning shared cockpit back on rejoins the room it left instead of waiting for the code to be
-pasted again. smoke.sh stopped being a script that prints things and hoping: fourteen
-assertions, each of which prints FAIL and exits non-zero - the room both ways, a service
-ordering reaching the other cockpit, an invite refused while shared is off, the room rejoined
-after it is turned back on, and the sim bridge in all four directions: identity in, a switch in,
-a switch asked back out, and a note across the room.
+A brand-new tag has no release, and the script asked GitHub for one to decide what to do: the
+404 that means "not yet" was routed to the same die() as a 403 or a 500, so the first run of
+release.sh for any new version died on the very check that tells it to create the release. 404
+now raises NotFound, which is what main() was already catching - it just could never have seen
+it raised.
