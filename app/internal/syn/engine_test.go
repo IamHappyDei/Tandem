@@ -379,3 +379,35 @@ func TestPausedSendsNothingAndAppliesNothing(t *testing.T) {
 		return b.state("GPU") == fake.Active
 	})
 }
+
+func TestProfileLimitsWhatIsMirrored(t *testing.T) {
+	l1, l2 := 18831, 18832
+	u1, u2 := 18931, 18932
+	a := newRig(t, "here", 18731, l1, u1, syn.EngineConfig{Role: "symmetric"})
+	defer a.stop(t)
+	b := newRig(t, "there", 18732, l2, u2, syn.EngineConfig{Role: "symmetric", Allowed: []string{"GPU"}})
+	defer b.stop(t)
+	if _, err := b.link.Dial(fmt.Sprintf("ws://127.0.0.1:%d", l1)); err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	wait(t, 5*time.Second, "both see one peer", func() bool {
+		return len(a.link.Peers()) == 1 && len(b.link.Peers()) == 1
+	})
+
+	a.toggle("Boarding")
+	a.toggle("GPU")
+	time.Sleep(1200 * time.Millisecond)
+	if got := b.state("Boarding"); got == fake.Active {
+		t.Errorf("there mirrored Boarding, which is not in its profile")
+	}
+	if got := b.state("GPU"); got != fake.Active {
+		t.Errorf("there did not mirror GPU (state %q)", got)
+	}
+	st := b.engine.Status().Sync
+	if len(st.Allowed) != 1 || st.Allowed[0] != "GPU" {
+		t.Errorf("status does not say which list is in force: %v", st.Allowed)
+	}
+	if st.Counters.Filtered == 0 {
+		t.Errorf("the refused service was not counted")
+	}
+}

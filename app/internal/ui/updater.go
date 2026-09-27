@@ -18,6 +18,8 @@ import (
 
 const updateFolder = "tandem-update"
 
+const downloadFor = 5 * time.Minute
+
 type asset struct {
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
@@ -88,6 +90,7 @@ func pickInstaller(rel release) (asset, error) {
 	return asset{}, fmt.Errorf("that release carries no installer of its own - attach tandem-setup.exe to it")
 }
 func downloadTo(client *http.Client, url, dir, name string, every int, note func(string)) (string, error) {
+	client = bodyClient(client)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -232,6 +235,18 @@ func extractSetup(src, dir string) (string, error) {
 	return "", fmt.Errorf("there is no tandem-setup.exe inside that archive")
 }
 
+func bodyClient(c *http.Client) *http.Client {
+	if c == nil {
+		return &http.Client{Timeout: downloadFor}
+	}
+	if c.Timeout > 0 && c.Timeout < downloadFor {
+		dup := *c
+		dup.Timeout = downloadFor
+		return &dup
+	}
+	return c
+}
+
 var updateDirName = func() string { return filepath.Join(os.TempDir(), updateFolder) }
 
 func (a *App) applyUpdate() (string, error) {
@@ -262,15 +277,9 @@ func (a *App) applyUpdate() (string, error) {
 	} else {
 		a.log.Warn("update: that release has no checksum attached, so the file is taken on trust")
 	}
-	setup := raw
-	if strings.HasSuffix(strings.ToLower(raw), ".zip") {
-		setup, err = extractSetup(raw, updateDirName())
-		if err != nil {
-			return "", err
-		}
-		if want := wantDigest(pick); want == "" {
-			a.log.Debug("update: unpacked %s", filepath.Base(setup))
-		}
+	setup, err := installerFrom(raw, updateDirName())
+	if err != nil {
+		return "", err
 	}
 	if !hasSetupName(setup) {
 		return "", fmt.Errorf("what came down (%s) is not an installer", filepath.Base(setup))
@@ -289,6 +298,20 @@ func (a *App) applyUpdate() (string, error) {
 		if err := spawn(setup); err != nil {
 			return "", err
 		}
+	}
+	return setup, nil
+}
+
+func installerFrom(raw, dir string) (string, error) {
+	if !strings.HasSuffix(strings.ToLower(raw), ".zip") {
+		return raw, nil
+	}
+	setup, err := extractSetup(raw, dir)
+	if err != nil {
+		return "", err
+	}
+	if err := os.Remove(raw); err != nil && !os.IsNotExist(err) {
+		_ = err
 	}
 	return setup, nil
 }

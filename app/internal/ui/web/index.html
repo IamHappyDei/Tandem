@@ -106,6 +106,9 @@
   select{font:inherit;background:#0a0f17;border:1px solid var(--line);border-radius:10px;color:var(--tx);padding:11px 13px;width:100%}
   select:focus{outline:none;border-color:#2f6f8f}
   .acline{display:flex;gap:8px;align-items:center}
+  .svcs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .svcs label{display:flex;gap:6px;align-items:center;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:5px 10px;color:var(--mut);cursor:pointer}
+  .svcs label.on{border-color:#256a52;color:var(--ok)}
   .small{font-size:12px;color:var(--dim);line-height:1.6}
   .note{border:1px dashed #3a4657;border-radius:10px;padding:9px 11px;color:var(--dim);font-size:12.5px;line-height:1.6;margin-bottom:10px}
   .note b{color:var(--warn);font-weight:600}
@@ -185,6 +188,7 @@
     <div class="acline"><select id="acPick"><option value="">not chosen</option></select></div>
     <label class="opt" id="acShareRow" style="padding-left:0"><input type="checkbox" id="acShare"><span><span class="t">Share ground services for this one</span><span class="d" id="acShareWhy">Profiles are per aircraft: leave it on and a chock or a GPU ordered in either cockpit is ordered here too.</span></span></label>
     <div class="small" id="acHint"></div>
+    <div class="svcs" id="acSvcs" hidden></div>
   </div>
 
   <div class="card" id="syncCard">
@@ -294,6 +298,13 @@ let invite = {code:'', form:'plain'};   // the real string; the window may show 
 let lastLink = null;                   // so a render never stomps a checkbox mid-click
 let AC = null;                         // what the community folder holds, refreshed on demand
 
+function saveServices(){
+  const key = $('#acPick').value, p = (AC && (AC.aircraft||[]).find(x=>x.key===key)) || {};
+  const all = Array.from(document.querySelectorAll('#acSvcs input'));
+  const on = all.filter(x=>x.checked).map(x=>x.dataset.svc);
+  aircraftPost({profile:{key, label:p.label, gsxSync:$('#acShare').checked, services: on.length===all.length ? [] : on}}, on.length===all.length ? 'every service, including ones not seen yet' : on.length + ' service(s) picked');
+}
+
 function paintAircraft(ac){
   const sel = $('#acPick');
   if (!AC) { sel.innerHTML = '<option value="">loading…</option>'; $('#acHint').textContent = ''; return; }
@@ -305,6 +316,17 @@ function paintAircraft(ac){
   const prof = (AC.aircraft||[]).find(p=>p.key===here);
   $('#acShare').checked = prof ? prof.gsxSync !== false : true;
   $('#acShareRow').style.display = here ? '' : 'none';
+  const names = Object.keys((S && S.status && S.status.gsx && S.status.gsx.phases) || {});
+  const picked = (prof && prof.services) || [];
+  const box = $('#acSvcs');
+  box.hidden = !here || names.length === 0;
+  if (!box.hidden) {
+    box.innerHTML = names.sort().map(n => {
+      const on = picked.length === 0 || picked.indexOf(n) >= 0;
+      return '<label class="' + (on ? 'on' : '') + '"><input type="checkbox" data-svc="' + n + '"' + (on ? ' checked' : '') + '>' + n + '</label>';
+    }).join('');
+    box.querySelectorAll('input').forEach(el => el.onchange = saveServices);
+  }
   if (document.activeElement !== $('#sComm')) $('#sComm').value = AC.community || '';
   $('#acHint').textContent = (AC.community ? AC.community + ' · ' + AC.found + ' aircraft, ' + AC.other + ' other packages' : 'no community folder found — set it in Settings')
     + (ac.why ? ' · ' + ac.label + ': ' + ac.why : '');

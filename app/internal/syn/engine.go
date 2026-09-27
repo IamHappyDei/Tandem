@@ -33,6 +33,7 @@ type EngineConfig struct {
 	GsxSyncDisabled  bool
 	StartPaused      bool
 	Name             string
+	Allowed          []string
 }
 
 type Counters struct {
@@ -44,6 +45,7 @@ type Counters struct {
 	DroppedDupe     int `json:"droppedDupe"`
 	ReconcileFixes  int `json:"reconcileFixes"`
 	ReconcileSkiped int `json:"reconcileSkipped"`
+	Filtered        int `json:"filtered"`
 	Muted           int `json:"muted"`
 	Failed          int `json:"failed"`
 }
@@ -73,6 +75,7 @@ type Engine struct {
 	replays  map[string]int
 	digests  map[string]*room.Msg
 	counters Counters
+	allow    atomic.Value
 	gsxOn    atomic.Bool
 	paused   atomic.Bool
 	recent   []Recent
@@ -99,6 +102,7 @@ func NewEngine(cfg EngineConfig, g *gsx.Client, l *room.Link, log *logx.Log) *En
 		touched: map[string]int64{}, drift: map[string]int{}, replays: map[string]int{},
 		digests: map[string]*room.Msg{}, stop: make(chan struct{}),
 	}
+	e.allow.Store(allowSet(cfg.Allowed))
 	e.gsxOn.Store(!cfg.GsxSyncDisabled)
 	e.paused.Store(cfg.StartPaused)
 	return e
@@ -180,6 +184,10 @@ func (e *Engine) onLocalChange(c Change) {
 			e.log.Debug("%s", in.Why)
 			continue
 		}
+		if !e.allows(in) {
+			e.filtered(in)
+			continue
+		}
 		sig := signature(in)
 		if e.suppressed(sig) {
 			e.mu.Lock()
@@ -236,6 +244,10 @@ func (e *Engine) onPeerAction(p *room.Peer, m *room.Msg) {
 		return
 	}
 	e.note(in, "remote:"+orEmpty(m.Who, p.Name))
+	if !e.allows(in) {
+		e.filtered(in)
+		return
+	}
 	if !e.syncing() {
 		e.countMuted()
 		e.log.Debug("muted (%s): peer order %s was noted and not applied", e.muteWhy(), intentWhy(in))
@@ -445,6 +457,10 @@ func (e *Engine) reconcile(key string, a, b Phase, wantStart bool, who string) {
 		e.log.Warn("DRIFT %s: here=%s there=%s (%s) - %s, so nothing was ordered", key, a.State, b.State, who, e.muteWhy())
 		return
 	}
+	if !e.allows(&Intent{Name: orEmpty(a.Canonical, b.Canonical), Picked: orEmpty(a.Label, b.Label), Key: key}) {
+		e.log.Debug("DRIFT %s: here=%s there=%s - outside this aircraft's profile, left alone", key, a.State, b.State)
+		return
+	}
 	why := "peer stopped it"
 	if wantStart {
 		why = "peer started it"
@@ -626,6 +642,7 @@ type Status struct {
 		GsxSync   bool     `json:"gsxSync"`
 		Paused    bool     `json:"paused"`
 		Mode      string   `json:"mode"`
+		Allowed   []string `json:"allowed,omitempty"`
 		Counters  Counters `json:"counters"`
 		Reconcile string   `json:"reconcile"`
 		Pending   []string `json:"pendingMenu"`
@@ -679,6 +696,7 @@ func (e *Engine) Status() *Status {
 	st.Link.Peers = e.link.Peers()
 	st.Link.Stats = e.link.Stats()
 	st.Sync.GsxSync, st.Sync.Paused = e.SyncFlags()
+	st.Sync.Allowed = e.Allowed()
 	switch {
 	case st.Sync.Paused:
 		st.Sync.Mode = "paused"
@@ -870,3 +888,67 @@ func (e *Engine) PeersDigests() []string {
 }
 
 func (e *Engine) MenuLabels() []string { return labelsOf(e.gsx) }
+
+func allowSet(names []string) *map[string]bool {
+	m := map[string]bool{}
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			m[norm(n)] = true
+		}
+	}
+	return &m
+}
+
+func (e *Engine) SetAllowed(names []string) {
+	m := map[string]bool{}
+	list := []string{}
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" {
+			continue
+		}
+		if !m[norm(n)] {
+			list = append(list, n)
+		}
+		m[norm(n)] = true
+	}
+	e.allow.Store(&m)
+	e.mu.Lock()
+	e.cfg.Allowed = list
+	e.mu.Unlock()
+	if len(list) == 0 {
+		e.log.Info("mirroring every service GSX knows")
+	} else {
+		e.log.Info("mirroring %d service(s) for this aircraft: %s", len(list), strings.Join(list, ", "))
+	}
+}
+
+func (e *Engine) allows(in *Intent) bool {
+	p := e.allow.Load()
+	if p == nil {
+		return true
+	}
+	m := *(p.(*map[string]bool))
+	if len(m) == 0 {
+		return true
+	}
+	for _, c := range []string{in.Name, in.Picked, in.Label, in.Key} {
+		if c != "" && m[norm(c)] {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *Engine) filtered(in *Intent) {
+	e.mu.Lock()
+	e.counters.Filtered++
+	e.mu.Unlock()
+	e.log.Debug("outside this aircraft's profile: %s", intentWhy(in))
+}
+
+func (e *Engine) Allowed() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string{}, e.cfg.Allowed...)
+}

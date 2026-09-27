@@ -56,6 +56,10 @@ func newStub(t *testing.T, rel release, body []byte, assetName string) *stub {
 		}
 		w.Write(s.body)
 	})
+	mux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(40 * time.Millisecond)
+		w.Write(s.body)
+	})
 	s.server = httptest.NewServer(mux)
 	t.Cleanup(s.server.Close)
 	return s
@@ -278,4 +282,24 @@ func quietLog() *logx.Log {
 	l := logx.New("debug")
 	l.SetQuiet(true)
 	return l
+}
+
+func TestDownloadGetsFiveMinutesNotTwentySeconds(t *testing.T) {
+	body := bytes.Repeat([]byte("setup"), 40000)
+	s := newStub(t, release{TagName: "v9.9.9"}, body, "tandem-setup.exe")
+	fast := &http.Client{Timeout: 10 * time.Millisecond}
+
+	if _, err := downloadTo(fast, s.server.URL+"/slow", t.TempDir(), "tandem-setup.exe", 4, func(string) {}); err != nil {
+		t.Fatalf("a lookup-sized client aborted the installer download: %v", err)
+	}
+	if got := bodyClient(nil).Timeout; got < 5*time.Minute {
+		t.Errorf("a download client waits %s, want at least five minutes", got)
+	}
+	if got := bodyClient(&http.Client{Timeout: time.Second}).Timeout; got != 5*time.Minute {
+		t.Errorf("a short client was left at %s", got)
+	}
+	long := &http.Client{Timeout: 2 * time.Hour}
+	if bodyClient(long) != long {
+		t.Errorf("a client that already allows a long body was shortened")
+	}
 }

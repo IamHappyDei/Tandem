@@ -167,6 +167,11 @@ looking in the usual places and keeping whichever one actually holds aircraft â€
 directory called `Community` is not it, on a box with three. Say so in Settings if your
 folder lives somewhere else, and press **Rescan folder** after you install something.
 
+Under the picker, the services GSX has told us about appear as chips you can tick. Ticked
+means *mirror this one for this aircraft*; unticked, an order for it is noted and refused â€”
+counted in `sync.counters.filtered`, never dropped in silence. Leave them all ticked and
+every service is mirrored, including ones the sim has not mentioned yet.
+
 **Detect** matches the aircraft name GSX reports against the folder and says where the name
 came from. When nothing matches it says so and you pick from the list; a profile you never
 picked is not applied to a type Tandem only guessed at. Profiles are per aircraft, so a

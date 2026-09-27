@@ -20,7 +20,16 @@ func gsxShared(cfg *conf.Config, acs *aircraft.Store) bool {
 }
 
 func (a *App) applyAircraft() {
+	a.engine.SetAllowed(a.activeServices())
 	a.engine.SetGsxSync(gsxShared(a.cfg, a.ac))
+}
+
+func (a *App) activeServices() []string {
+	key, _ := a.ac.ActiveKey()
+	if key == "" {
+		return nil
+	}
+	return a.ac.Profile(key).Services
 }
 
 func (a *App) aircraftBrief() map[string]any {
@@ -37,28 +46,35 @@ func (a *App) aircraftBrief() map[string]any {
 }
 
 func (a *App) hAircraft(r *http.Request, body map[string]any) (any, error) {
+	changed := false
+	save := func() error {
+		if changed {
+			changed = false
+			return a.ac.Save()
+		}
+		return nil
+	}
 	if v, ok := body["community"].(string); ok && strings.TrimSpace(v) != "" {
 		a.ac.SetCommunity(v)
 		a.log.Info("looking for aircraft in %s", a.ac.CommunityDir())
-		if err := a.ac.Save(); err != nil {
-			return nil, err
-		}
-		return a.ac.Summary(), nil
+		changed = true
 	}
 	if _, ok := body["rescan"].(bool); ok {
 		a.ac.SetCommunity(a.ac.CommunityDir())
-		return a.ac.Summary(), nil
+		changed = true
 	}
 	if _, ok := body["detect"].(bool); ok {
-		pkgs := a.ac.List()
-		if p, why, ok := aircraft.Detect(pkgs, a.gsx.State()); ok {
+		if p, why, ok := aircraft.Detect(a.ac.List(), a.gsx.State()); ok {
 			a.ac.SetActive(p.Key(), why)
 			a.applyAircraft()
-			_ = a.ac.Save()
 			a.log.Info("aircraft: %s (%s)", p.Label(), why)
-			return a.ac.Summary(), nil
+			changed = true
+		} else {
+			if err := save(); err != nil {
+				return nil, err
+			}
+			return map[string]any{"error": "nothing in what GSX reports matches the folder - pick it below"}, nil
 		}
-		return map[string]any{"error": "nothing in what GSX reports matches the folder - pick it below"}, nil
 	}
 	if v, ok := body["active"].(string); ok {
 		why := "you picked it"
@@ -67,10 +83,7 @@ func (a *App) hAircraft(r *http.Request, body map[string]any) (any, error) {
 		}
 		a.ac.SetActive(v, why)
 		a.applyAircraft()
-		if err := a.ac.Save(); err != nil {
-			return nil, err
-		}
-		return a.ac.Summary(), nil
+		changed = true
 	}
 	if raw, ok := body["profile"].(map[string]any); ok {
 		key, _ := raw["key"].(string)
@@ -92,10 +105,10 @@ func (a *App) hAircraft(r *http.Request, body map[string]any) (any, error) {
 		}
 		a.ac.Set(key, label, on, services)
 		a.applyAircraft()
-		if err := a.ac.Save(); err != nil {
-			return nil, err
-		}
-		return a.ac.Summary(), nil
+		changed = true
+	}
+	if err := save(); err != nil {
+		return nil, err
 	}
 	return a.ac.Summary(), nil
 }
