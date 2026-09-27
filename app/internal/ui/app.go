@@ -176,6 +176,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("/api/aircraft", a.either(a.hAircraft))
 	mux.HandleFunc("/api/sim", a.either(a.hSim))
 	mux.HandleFunc("/api/clipboard", a.json(a.hClipboard))
+	mux.HandleFunc("/api/browse", a.json(a.hBrowse))
 	return mux
 }
 
@@ -895,7 +896,7 @@ func modeOf(c *conf.Config) string {
 	return "room"
 }
 
-const Version = "1.2.2"
+const Version = "1.2.3"
 
 func selfSent(cands []string, hosts, ports map[string]bool) string {
 	for _, c := range cands {

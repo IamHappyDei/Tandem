@@ -232,7 +232,7 @@
         <label>rendezvous</label><input id="sRdv" placeholder="host:port of a phone-book server (for codes, later)">
         <label>relay</label><input id="sRelay" placeholder="ws://your-vps:8791 (last resort)">
         <label>community</label><input id="sComm" placeholder="the folder your aircraft live in" spellcheck="false">
-          <span class="q"><button class="ghost sm" id="sCommPaste" title="Ctrl+V in the box does the same">Paste</button></span>
+          <span class="q"><button class="ghost sm" id="sCommBrowse">Browse…</button><button class="ghost sm" id="sCommPaste" title="Ctrl+V in the box does the same">Paste</button></span>
       </div>
       <div class="opts">
         <label class="opt"><input type="checkbox" id="sUpd">
@@ -596,12 +596,18 @@ $('#acRescan').onclick = () => aircraftPost({community: (AC && AC.community) || 
 $('#sComm').onchange = () => aircraftPost({community: $('#sComm').value.trim()}, 'folder changed');
 async function pasteCommunity(){
   try { const d = await api('/api/clipboard', {});
-    const t = String(d.text||'').split(/?
+    const t = String(d.text||'').split(/
+?
 /)[0].trim().replace(/^"|"$/g,'');
     if (!t) throw new Error('the clipboard holds no text');
     $('#sComm').value = t; aircraftPost({community: t}, 'pasted that folder in');
   } catch(e){ flash($('#acHint'), e.message + ' - type it instead', 'bad'); }
 }
+$('#sCommBrowse').onclick = async () => {
+  flash($('#acHint'), 'choosing - pick the Community folder in the window that opened', 'ok');
+  try { const d = await api('/api/browse', {}); $('#sComm').value = d.path; aircraftPost({community: d.path}, 'you picked that folder'); }
+  catch(e){ flash($('#acHint'), e.message || 'nothing was picked', 'bad'); }
+};
 $('#sCommPaste').onclick = pasteCommunity;
 $('#sComm').addEventListener('keydown', ev => {
   if ((ev.ctrlKey||ev.metaKey) && (ev.key==='v'||ev.key==='V')) { ev.preventDefault(); pasteCommunity(); }

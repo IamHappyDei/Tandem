@@ -18,6 +18,7 @@ import (
 	"tandem/internal/discover"
 	"tandem/internal/fake"
 	"tandem/internal/logx"
+	"tandem/internal/pick"
 	"tandem/internal/relay"
 	"tandem/internal/tray"
 	"tandem/internal/ui"
@@ -60,6 +61,8 @@ func main() {
 		runWindow(fs.Args())
 	case "update":
 		runUpdate(*get)
+	case "browse":
+		cmdBrowse()
 	case "sim-install":
 		cmdSimInstall(fs.Args())
 	case "sim-remove":
@@ -397,4 +400,13 @@ func communityFrom(a []string) string {
 		return x
 	}
 	return ""
+}
+
+func cmdBrowse() {
+	where, err := pick.Folder("")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Println(where)
 }

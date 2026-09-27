@@ -22,6 +22,7 @@ import (
 	"tandem/internal/clip"
 	"tandem/internal/conf"
 	"tandem/internal/logx"
+	"tandem/internal/pick"
 	"tandem/internal/ui"
 )
 
@@ -87,6 +88,7 @@ func (g *gui) Handler() http.Handler {
 	mux.HandleFunc("/api/elevate", g.post(g.doElevate))
 	mux.HandleFunc("/api/quit", g.post(g.doQuit))
 	mux.HandleFunc("/api/clipboard", g.clipboard)
+	mux.HandleFunc("/api/browse", g.browse)
 	mux.HandleFunc("/api/events", g.events)
 	return mux
 }
@@ -408,4 +410,13 @@ func (g *gui) clipboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"text": t})
+}
+
+func (g *gui) browse(w http.ResponseWriter, r *http.Request) {
+	where, err := pick.Folder("")
+	if err != nil {
+		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{"path": where})
 }
