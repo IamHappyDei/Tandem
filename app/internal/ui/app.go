@@ -894,7 +894,7 @@ func modeOf(c *conf.Config) string {
 	return "room"
 }
 
-const Version = "1.2.0"
+const Version = "1.2.1"
 
 func selfSent(cands []string, hosts, ports map[string]bool) string {
 	for _, c := range cands {
