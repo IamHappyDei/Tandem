@@ -1,0 +1,21 @@
+{
+  "name": "gsx-sync",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared-cockpit ground-equipment sync for FSDT GSX Pro (MSFS 2024) over the Couatl Remote API",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "gsxsync": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node test/selftest.js",
+    "smoke": "node test/smoke.js",
+    "replay": "node tools/replay.js",
+    "relay": "node tools/relay.js"
+  },
+  "license": "MIT"
+}

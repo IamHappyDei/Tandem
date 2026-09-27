@@ -198,7 +198,8 @@ func Guess(pkgs []Package, said string) (Package, bool) {
 		return Package{}, false
 	}
 	for _, p := range pkgs {
-		for _, c := range append([]string{p.Title, p.Name}, strings.Fields(p.Title)...) {
+		cands := append([]string{p.Title, p.Name}, distinctives(p.Title)...)
+		for _, c := range cands {
 			n := normalize(c)
 			if n == "" {
 				continue
@@ -266,4 +267,23 @@ func (s *Store) Summary() map[string]any {
 		"pinned":    s.IsPinned(),
 		"profiles":  len(keys),
 	}
+}
+
+// distinctives are the words in a title that actually identify the airframe - a brand
+// name alone ("Fenix") matches every aircraft that brand makes, which is how an A321 in
+// the sim came to be read as an A320 here.
+func distinctives(title string) []string {
+	out := []string{}
+	for _, w := range strings.Fields(title) {
+		digit := false
+		for _, r := range w {
+			if r >= '0' && r <= '9' {
+				digit = true
+			}
+		}
+		if digit && len(w) >= 3 {
+			out = append(out, w)
+		}
+	}
+	return out
 }
