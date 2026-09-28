@@ -99,6 +99,9 @@ func Defaults() *Config {
 	c.Net.Room = ""
 	c.Net.Pass = ""
 	c.Net.RelayURLs = []string{}
+	if r := RelayFromEnv(); r != "" {
+		c.Net.RelayURLs = []string{r}
+	}
 	c.Shared = boolPtr(false)
 	c.Sim.Enabled = false
 	c.Sim.Port = 8796
@@ -251,9 +254,24 @@ func Slug(name string) string {
 	return s
 }
 
+// RoomCode mints a room name. Eight characters to match Code() and isBareCode(),
+// so a room code typed into the join box is recognised as a bare code, not a string.
+// BuiltInRelay is the always-on server every cockpit dials out to, so nobody has to
+// open a router port. Empty until the Render deployment exists; TANDEM_RELAY overrides.
+const BuiltInRelay = ""
+
+func RelayFromEnv() string {
+	if v := strings.TrimSpace(os.Getenv("TANDEM_RELAY")); v != "" {
+		return v
+	}
+	return BuiltInRelay
+}
+
+// RoomCode mints a room name. Eight characters, so it matches Code() and isBareCode()
+// and a room code typed into the join box is taken as a bare code, not a long string.
 func RoomCode() string {
 	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	out := make([]byte, 5)
+	out := make([]byte, 8)
 	for i := range out {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
 		if err != nil {

@@ -41,6 +41,7 @@ func main() {
 	listen := fs.Int("listen", 0, "TCP port to host the room on")
 	udp := fs.Int("udp", 0, "UDP port to punch from")
 	name := fs.String("name", "", "what this cockpit is called (default: the PC name)")
+	roomPass := fs.String("pass", "", "the word both cockpits must type to share a room")
 	bind := fs.String("bind", "", "address to listen on (discover / relay)")
 	once := fs.Bool("once", false, "print status and exit (headless use)")
 	get := fs.Bool("get", false, "with update: download the installer and run it")
@@ -70,13 +71,13 @@ func main() {
 	case "version":
 		fmt.Println(ui.Version)
 	default:
-		runApp(*uiPort, *gsxURL, !*noGUI, *once, !*browser, *console, *listen, *udp, *name)
+		runApp(*uiPort, *gsxURL, !*noGUI, *once, !*noGUI && !*browser, *console, *listen, *udp, *name, *roomPass)
 	}
 }
 
 func isFlag(s string) bool { return len(s) > 0 && s[0] == '-' }
 
-func runApp(uiPort int, gsxURL string, gui, once, win, showConsole bool, listen, udp int, name string) {
+func runApp(uiPort int, gsxURL string, gui, once, win, showConsole bool, listen, udp int, name, roomPass string) {
 
 	if name != "" || listen > 0 || udp > 0 {
 		n := name
@@ -94,6 +95,9 @@ func runApp(uiPort int, gsxURL string, gui, once, win, showConsole bool, listen,
 	}
 	if name != "" {
 		cfg.Net.Name = name
+	}
+	if roomPass != "" {
+		cfg.Net.Pass = roomPass
 	}
 	if listen > 0 {
 		cfg.Net.Port = listen
@@ -193,7 +197,7 @@ func runRelay(port int, bind string) {
 	log := logx.New("info")
 	p := port
 	if p == 0 {
-		p = 8790
+		p = envPort(8790) // Render injects the free port as $PORT
 	}
 	s := relay.New(p, "0.0.0.0", log.Child("[relay]"))
 	log.Info("relay listening on 0.0.0.0:%d - cockpits join ws://<this box>:%d and pick a room code", p, p)
@@ -201,6 +205,16 @@ func runRelay(port int, bind string) {
 		log.Error("%s", err)
 		os.Exit(1)
 	}
+}
+
+// envPort reads $PORT, falling back to def when it is missing or nonsense.
+func envPort(def int) int {
+	if v := strings.TrimSpace(os.Getenv("PORT")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
 }
 
 func runFake(port int) {

@@ -63,6 +63,16 @@ func New(port int, bind string, log *logx.Log) *Server {
 		s.mu.Unlock()
 		_, _ = w.Write([]byte("tandem relay up - " + itoa(n) + " cockpit(s) connected\n"))
 	})
+	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		st := s.Stats()
+		s.mu.Lock()
+		n := len(s.mem)
+		s.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"connected":` + itoa(n) +
+			`,"rx":` + itoa(st.Rx) + `,"tx":` + itoa(st.Tx) +
+			`,"joins":` + itoa(st.Joins) + `}`))
+	})
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		c, err := s.up.Upgrade(w, r, nil)
 		if err != nil {
