@@ -176,6 +176,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("/api/aircraft", a.either(a.hAircraft))
 	mux.HandleFunc("/api/sim", a.either(a.hSim))
 	mux.HandleFunc("/api/browse", a.json(a.hBrowse))
+	mux.HandleFunc("/api/ui", a.json(a.hUI))
 	return mux
 }
 
@@ -284,6 +285,7 @@ func (a *App) status(w http.ResponseWriter, r *http.Request) (any, error) {
 		a.cfg.Net.Room = r
 		_ = a.cfg.Save()
 	}
+	simBrief := a.simBrief()
 	a.mu.Lock()
 	pub := append([]string{}, a.public...)
 	last := a.lastDial
@@ -310,7 +312,7 @@ func (a *App) status(w http.ResponseWriter, r *http.Request) (any, error) {
 		"uiPort":        a.cfg.UI.Port,
 		"logFile":       filepath.Base(conf.LogPath()),
 		"aircraft":      a.aircraftBrief(),
-		"sim":           a.simBrief(),
+		"sim":           simBrief,
 		"gsxSync":       a.cfg.Sync.GsxSync,
 		"shared":        a.cfg.SharedCockpit(),
 		"paused":        a.cfg.Sync.Paused,
@@ -574,6 +576,28 @@ func (a *App) paste(r *http.Request, body map[string]any) (any, error) {
 		return nil, err
 	}
 	in := strings.TrimSpace(asString(body["code"]))
+
+	// Server mode: a named relay means the room code alone is enough - nobody dials,
+	// nobody punches, both sides just join the room through the server.
+	if len(a.cfg.Net.RelayURLs) > 0 {
+		if isBareCode(in) {
+			a.joinRoom(strings.ToUpper(in), "", true)
+			a.log.Info("joining room %s over the server", a.cfg.Net.Room)
+			return map[string]any{"room": a.cfg.Net.Room, "via": "server", "peers": a.link.Peers()}, nil
+		}
+		sh, err := parseShare(in)
+		if err != nil {
+			return nil, err
+		}
+		if sh.Room != "" {
+			a.joinRoom(sh.Room, sh.Pass, true)
+		}
+		for _, u := range a.cfg.Net.RelayURLs {
+			go func(u string) { _ = a.link.Relay(u, a.cfg.Net.Room, a.cfg.Net.Pass) }(u)
+		}
+		a.log.Info("joining room %s over the server", orDash(a.cfg.Net.Room))
+		return map[string]any{"room": a.cfg.Net.Room, "via": "server", "peers": a.link.Peers()}, nil
+	}
 
 	if isBareCode(in) {
 		if !a.link.HasRendezvous() {

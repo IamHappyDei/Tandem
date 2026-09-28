@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"tandem/internal/conf"
 )
 
 func TestShareRoundTrip(t *testing.T) {
@@ -109,5 +111,15 @@ func TestOpaqueStaysOpaque(t *testing.T) {
 			t.Fatal("two invites came out identical: the nonce is not random, so one leak leaks all")
 		}
 		seen[code] = true
+	}
+}
+
+// The relay-join path treats a typed room code as a bare code, and room codes come
+// from conf.RoomCode(). If those ever drift apart in length, typing a code stops working.
+func TestRoomCodeIsTypedAsBareCode(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		if c := conf.RoomCode(); !isBareCode(c) {
+			t.Fatalf("room code %q would not be recognised when typed", c)
+		}
 	}
 }

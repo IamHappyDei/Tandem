@@ -257,8 +257,8 @@ func Slug(name string) string {
 // RoomCode mints a room name. Eight characters to match Code() and isBareCode(),
 // so a room code typed into the join box is recognised as a bare code, not a string.
 // BuiltInRelay is the always-on server every cockpit dials out to, so nobody has to
-// open a router port. Empty until the Render deployment exists; TANDEM_RELAY overrides.
-const BuiltInRelay = ""
+// open a router port: the app connects through this instead of punching. TANDEM_RELAY overrides.
+const BuiltInRelay = "wss://tandem-lioc.onrender.com"
 
 func RelayFromEnv() string {
 	if v := strings.TrimSpace(os.Getenv("TANDEM_RELAY")); v != "" {
