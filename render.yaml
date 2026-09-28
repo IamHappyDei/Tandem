@@ -1,11 +1,10 @@
 # Render blueprint — the always-on Tandem relay.
-# Free "web service", native Go runtime (the free tier offers no Docker option).
-# The public URL (wss://<host>) is what you hardcode into conf.BuiltInRelay.
+# Mirrors the manual dashboard setup that is LIVE: https://tandem-lioc.onrender.com
+# (Native Go runtime — the free tier offers no Docker/image option.)
 services:
   - type: web
     name: tandem-relay
-    env: image
-    image: golang:1.27-bookworm
+    env: go
     region: singapore
     plan: free
     rootDir: app
